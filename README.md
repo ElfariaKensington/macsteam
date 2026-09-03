@@ -6,7 +6,11 @@
 
 If you don't know what a Steam Unlock Client is, think 'SteamTools/OpenSteamTool/HubcapTools'. SLSSteam if you have good taste. If you don't know what those are, this isn't for you.
 
-This is a minimal unlock client, at the moment. It supports game ownership spoofing ('unlocking') and license injection/downloading. It also has an achievement schema fetcher that is, umm, heavily 'inspired' by the one used in [SLSSteam](https://github.com/AceSLS/SLSsteam) but is no where as good or as well tested as that component was re-engineered hastily over the course of a few hours. Other than that one thing, this is an original work. It is _not_ a port of OpenSteamTool or SLSSteam to macOS. 
+This is a minimal unlock client, at the moment. It supports game ownership spoofing ('unlocking') and license injection/downloading. It also has an achievement schema fetcher that is, umm, heavily 'inspired' by the one used in [SLSSteam](https://github.com/AceSLS/SLSsteam) but is no where as good or as well tested as that component was re-engineered hastily over the course of a few hours so that I could release.... 
+
+Other than that one thing, this is an original work. It is _not_ a port of OpenSteamTool or SLSSteam to macOS. 
+
+Manifests for injected games are fetched from the OpenSteamTool endpoint, as needed. I didn't want to build my own manifest delivery endpoint, theirs has been reliable, so it is used. Open source stuff and all that.
 
 ## How?
 
