@@ -1,6 +1,6 @@
 # macsteam 
 
-"Steam unlock client" for macOS. ARM macOS, specifically. 
+"Steam unlock client" for macOS. ARM macOS, specifically. **This does not support Intel Macs!**
 
 ## Huh?
 
