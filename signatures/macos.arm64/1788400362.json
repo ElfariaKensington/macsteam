@@ -64,16 +64,28 @@
       "func_addr_this_build": "0x8a2a10"
     },
     {
-      "name": "CUserAppInfo::BGetDLCDataByIndex",
-      "aob_hex": "08 9F 9A 52 88 DB A9 72 A8 C3 1E B8",
-      "match_offset": 92,
-      "func_addr_this_build": "0x8d992c"
+      "name": "IClientApps::BGetDLCDataByIndex",
+      "aob_hex": "C8 86 93 52 08 D1 B4 72 A8 C3 1B B8",
+      "match_offset": 124,
+      "func_addr_this_build": "0x8dd7bc"
     },
     {
       "name": "IClientAppManager::IsAppDlcInstalled",
-      "aob_hex": "A8 87 8E 52 A8 D5 AA 72 E8 4B 00 B9",
-      "match_offset": 120,
-      "func_addr_this_build": "0x8db51c"
+      "aob_hex": "08 8E 91 52 A8 B7 B9 72 A8 C3 1D B8",
+      "match_offset": 100,
+      "func_addr_this_build": "0x8df410"
+    },
+    {
+      "name": "IClientUtils::GetAppID",
+      "aob_hex": "88 D8 8F 52 08 2C A1 72 A8 C3 1E B8",
+      "match_offset": 88,
+      "func_addr_this_build": "0x8cc76c"
+    },
+    {
+      "name": "IClientUser::IsUserSubscribedAppInTicket",
+      "aob_hex": "08 0F 83 52 A8 68 B2 72 A8 C3 1D B8 E0 23 00 91 A1 93 00 D1 82 00 80 52",
+      "match_offset": 100,
+      "func_addr_this_build": "0x89c954"
     },
     {
       "name": "CPackageInfo::BParseFromBuffer",
@@ -136,6 +148,26 @@
         "mnem": "BLR",
         "n": 1
       }
+    },
+    {
+      "name": "IClientUser::__ipc_server_dispatch",
+      "aob_hex": "?? ?? ?? D1 ?? ?? ?? A9 ?? ?? ?? A9 ?? ?? ?? A9 ?? ?? ?? A9 ?? ?? ?? A9 ?? ?? ?? 91 F6 03 03 AA F3 03 02 AA F5 03 01 AA F4 03 00 AA ?? ?? ?? D1 E0 03 15 AA 82 00 80 52 ?? ?? ?? 97 ?? ?? ?? B8 48 20 8E 52 C8 6A A1 72",
+      "func_addr_this_build": "0x7fe490"
+    },
+    {
+      "name": "CUtlBuffer::GetBytes",
+      "aob_hex": "?? ?? ?? A9 ?? ?? ?? 91 ?? ?? ?? B9 09 10 40 B9 08 01 09 4B",
+      "func_addr_this_build": "0xcc3dc"
+    },
+    {
+      "name": "CUtlBuffer::PutBytes",
+      "aob_hex": "?? ?? ?? A9 ?? ?? ?? A9 FD 7B 02 A9 FD 83 00 91 5F 04 00 71 EB 02 00 54",
+      "func_addr_this_build": "0x109175c"
+    },
+    {
+      "name": "CUtlBuffer::PutTag",
+      "aob_hex": "?? ?? ?? D1 ?? ?? ?? A9 ?? ?? ?? A9 ?? ?? ?? 91 ?? ?? ?? AA ?? ?? ?? AA ?? ?? ?? F0 ?? ?? ?? F9 ?? ?? ?? F9 ?? ?? ?? F8 08 7C 40 39",
+      "func_addr_this_build": "0x1091fdc"
     }
   ]
 }

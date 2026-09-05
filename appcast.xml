@@ -5,6 +5,18 @@
     <description>Most recent changes for macSteam Config.</description>
     <language>en</language>
     <item>
+      <title>Version 0.7.1</title>
+      <pubDate>Sat, 05 Sep 2026 00:15:45 -0400</pubDate>
+      <sparkle:version>10</sparkle:version>
+      <sparkle:shortVersionString>0.7.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<ul><li>Adds support for SteamStub</li><li>Some correctness changes</li><li>Fixed a bug that zero users encountered that would cause failed downloads in some cases</li></ul>]]></description>
+      <enclosure url="https://github.com/Selectively11/macsteam/releases/download/v0.7.1/macSteam-Config-0.7.1.zip"
+                 type="application/octet-stream"
+                 sparkle:edSignature="nnViWx1f8EhMn02i9VycwFtB2DZ9o3bGUqHfl3UwAyxA9LYZj+FBLyA3FmZrtkvRWKRrzIUmBsXLVd/0ViIhDw=="
+                 length="1508172" />
+    </item>
+    <item>
       <title>Version 0.7.0</title>
       <pubDate>Thu, 03 Sep 2026 00:17:49 -0400</pubDate>
       <sparkle:version>9</sparkle:version>

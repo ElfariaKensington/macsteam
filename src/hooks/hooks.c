@@ -45,6 +45,7 @@ static const sx_hook_module_t g_modules[] = {
     { "license",  sx_hooks_license_count,  sx_hooks_license_defs  },
     { "manifest", sx_hooks_manifest_count, sx_hooks_manifest_defs },
     { "stats",    sx_hooks_stats_count,    sx_hooks_stats_defs    },
+    { "ticket",   sx_hooks_ticket_count,   sx_hooks_ticket_defs   },
 };
 
 #define NUM_MODULES (sizeof(g_modules) / sizeof(g_modules[0]))
@@ -57,6 +58,12 @@ int sx_hooks_install_all(sx_resolve_result_t *resolved, int *total_out) {
         sx_resolve_find(resolved, "CUtlBuffer::SeekPut"));
     sx_hooks_package_set_helpers(
         sx_resolve_find(resolved, "CPackageInfo::BParseFromBuffer"));
+    sx_hooks_ticket_set_helpers(
+        sx_resolve_find(resolved, "CUtlBuffer::PutBytes"),
+        sx_resolve_find(resolved, "CUtlBuffer::PutTag"),
+        sx_resolve_find(resolved, "CUtlBuffer::GetBytes"));
+    sx_hooks_ctx_set_helpers(
+        sx_resolve_find(resolved, "IClientUtils::GetAppID"));
 
     for (size_t m = 0; m < NUM_MODULES; m++) {
         const sx_hook_module_t *mod = &g_modules[m];

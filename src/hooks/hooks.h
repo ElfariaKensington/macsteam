@@ -44,6 +44,13 @@ sx_hook_def_t *sx_hooks_manifest_defs(void);
 int  sx_hooks_stats_count(void);
 sx_hook_def_t *sx_hooks_stats_defs(void);
 
+int  sx_hooks_ticket_count(void);
+sx_hook_def_t *sx_hooks_ticket_defs(void);
+void sx_hooks_ticket_set_helpers(uintptr_t put_bytes, uintptr_t put_tag,
+                                 uintptr_t get_bytes);
+
+void sx_hooks_ctx_set_helpers(uintptr_t getappid);
+
 void sx_hooks_relaunch_install(void);
 
 int sx_hooks_install_all(sx_resolve_result_t *resolved, int *total_out);
