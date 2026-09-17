@@ -10,7 +10,7 @@ This is a minimal unlock client, at the moment. It supports game ownership spoof
 
 Other than that one thing, this is an original work. It is _not_ a port of OpenSteamTool or SLSSteam to macOS. 
 
-Manifests for injected games are fetched from the OpenSteamTool endpoint, as needed. I didn't want to build my own manifest delivery endpoint, theirs has been reliable, so it is used. Open source stuff and all that.
+Manifests for injected games are fetched from the OpenSteamTool endpoint, as needed. I didn't want to build my own manifest delivery endpoint, theirs has been reliable [EDIT: this aged well!] so it is used. Open source stuff and all that.
 
 ## How?
 
