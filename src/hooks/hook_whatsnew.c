@@ -16,6 +16,7 @@
 #include <sys/syscall.h>
 #include <stdio.h>
 #include <errno.h>
+#include <dirent.h>
 
 #define DYLD_INTERPOSE(_replacement, _replacee) \
     __attribute__((used)) static struct { \
@@ -79,28 +80,54 @@ static int should_patch(const char *path) {
         && ends_with(path, ".css");
 }
 
-static const char FINGERPRINT[] = "linear-gradient(to top, #171d25";
-static const char INJECT[]       = ";display:none!important";
+static const char *FINGERPRINTS[] = {
+    "linear-gradient(to top, #171d25",
+    "padding:8px 0px 16px;display:flex;flex-direction:column;gap:24px",
+};
+static const char INJECT[] = ";display:none!important";
 
 static char *transform_css(const char *src, size_t len, size_t *out_len) {
-    const char *hit = memmem(src, len, FINGERPRINT, sizeof(FINGERPRINT) - 1);
-    if (!hit)
+    size_t offsets[sizeof(FINGERPRINTS) / sizeof(FINGERPRINTS[0])];
+    size_t count = 0;
+    for (size_t i = 0; i < sizeof(FINGERPRINTS) / sizeof(FINGERPRINTS[0]); i++) {
+        const char *fingerprint = FINGERPRINTS[i];
+        const char *hit = memmem(src, len, fingerprint, strlen(fingerprint));
+        if (!hit)
+            continue;
+        const char *end = memchr(hit, '}', (size_t)(src + len - hit));
+        if (!end)
+            continue;
+        if (memmem(hit, (size_t)(end - hit), INJECT, sizeof(INJECT) - 1))
+            continue;
+        size_t offset = (size_t)(end - src);
+        if (count == 0 || offsets[count - 1] != offset)
+            offsets[count++] = offset;
+    }
+    if (count == 0)
         return NULL;
-
-    const char *end = memchr(hit, '}', (size_t)(src + len - hit));
-    if (!end)
-        return NULL;
-    size_t ins = (size_t)(end - src);
+    if (count == 2 && offsets[0] > offsets[1]) {
+        size_t tmp = offsets[0];
+        offsets[0] = offsets[1];
+        offsets[1] = tmp;
+    }
 
     size_t inj = sizeof(INJECT) - 1;
-    char *out = (char *)malloc(len + inj);
+    char *out = (char *)malloc(len + count * inj);
     if (!out)
         return NULL;
 
-    memcpy(out, src, ins);
-    memcpy(out + ins, INJECT, inj);
-    memcpy(out + ins + inj, src + ins, len - ins);
-    *out_len = len + inj;
+    size_t src_pos = 0;
+    size_t out_pos = 0;
+    for (size_t i = 0; i < count; i++) {
+        size_t chunk = offsets[i] - src_pos;
+        memcpy(out + out_pos, src + src_pos, chunk);
+        out_pos += chunk;
+        memcpy(out + out_pos, INJECT, inj);
+        out_pos += inj;
+        src_pos = offsets[i];
+    }
+    memcpy(out + out_pos, src + src_pos, len - src_pos);
+    *out_len = len + count * inj;
     return out;
 }
 
@@ -163,6 +190,98 @@ static int make_patched_fd(const char *path) {
 
     SX_LOG_ONCE("What's New: served patched CSS (%s)", path);
     return tfd;
+}
+
+static int patch_css_file(const char *path) {
+    int src_fd = real_open(path, O_RDONLY, 0);
+    if (src_fd < 0)
+        return -1;
+
+    struct stat st;
+    if (fstat(src_fd, &st) != 0) {
+        close(src_fd);
+        return -1;
+    }
+
+    size_t len = 0;
+    char *src = read_all(src_fd, &len);
+    close(src_fd);
+    if (!src)
+        return -1;
+
+    size_t out_len = 0;
+    char *out = transform_css(src, len, &out_len);
+    free(src);
+    if (!out)
+        return 0;
+
+    char tmpl[1200];
+    snprintf(tmpl, sizeof(tmpl), "%s.macsteam.XXXXXX", path);
+    int fd = mkstemp(tmpl);
+    if (fd < 0) {
+        free(out);
+        return -1;
+    }
+    fchmod(fd, st.st_mode & 0777);
+
+    size_t wrote = 0;
+    while (wrote < out_len) {
+        ssize_t n = write(fd, out + wrote, out_len - wrote);
+        if (n <= 0)
+            break;
+        wrote += (size_t)n;
+    }
+    free(out);
+
+    int sync_rc = wrote == out_len ? fsync(fd) : -1;
+    int close_rc = close(fd);
+    int rc = (wrote == out_len && sync_rc == 0 && close_rc == 0
+              && rename(tmpl, path) == 0) ? 1 : -1;
+    if (rc < 0)
+        unlink(tmpl);
+    return rc;
+}
+
+void sx_whatsnew_patch_installed_css(void) {
+    char config_path[1024];
+    sx_file_config_path(config_path, sizeof(config_path));
+
+    sx_config_t cfg;
+    memset(&cfg, 0, sizeof(cfg));
+    if (sx_config_load(config_path, &cfg) != 0)
+        return;
+    int enabled = cfg.hide_whats_new;
+    sx_config_free(&cfg);
+    if (!enabled)
+        return;
+
+    const char *home = sx_resolve_home();
+    if (!home)
+        return;
+    char dir_path[1024];
+    snprintf(dir_path, sizeof(dir_path),
+             "%s/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steamui/css",
+             home);
+
+    DIR *dir = opendir(dir_path);
+    if (!dir)
+        return;
+
+    int patched = 0;
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (!ends_with(entry->d_name, ".css"))
+            continue;
+        char path[1200];
+        snprintf(path, sizeof(path), "%s/%s", dir_path, entry->d_name);
+        int rc = patch_css_file(path);
+        if (rc > 0)
+            patched++;
+        else if (rc < 0)
+            SX_WARN("What's New: failed to patch %s", path);
+    }
+    closedir(dir);
+    SX_LOG("What's New: patched %d installed CSS file(s)", patched);
 }
 
 static int is_ro(int oflag) {
