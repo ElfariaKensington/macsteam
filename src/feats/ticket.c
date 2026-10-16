@@ -111,8 +111,8 @@ int sx_ticket_serve_extended(void *server_this, void *reqReader, void *respWrite
 
     if (src_len <= 0 || body_len == 0 || sig_size == 0 ||
         body_len + sig_size != (uint32_t)src_len) {
-        SX_WARN("GetAppOwnershipTicketExtendedData: appid-7 ticket invalid (len=%lld, sigOff=%u, sigSize=%u)",
-                (long long)src_len, body_len, sig_size);
+        SX_WARN("GetAppOwnershipTicketExtendedData: appid-7 ticket invalid (len=%lld, sigOff=%u, sigSize=%u, impl=%p)",
+                (long long)src_len, body_len, sig_size, (void *)impl);
         free(source_buf);
         return 0;
     }

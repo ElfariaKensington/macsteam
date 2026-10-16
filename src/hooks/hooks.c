@@ -62,6 +62,11 @@ int sx_hooks_install_all(sx_resolve_result_t *resolved, int *total_out) {
         sx_resolve_find(resolved, "CUtlBuffer::PutBytes"),
         sx_resolve_find(resolved, "CUtlBuffer::PutTag"),
         sx_resolve_find(resolved, "CUtlBuffer::GetBytes"));
+    sx_hooks_ticket_set_source_helpers(
+        sx_resolve_find(resolved, "CUtlBuffer::Ctor"),
+        sx_resolve_find(resolved, "CUtlBuffer::EnsureCapacity"),
+        sx_resolve_find(resolved, "CUtlBuffer::PutBytes"),
+        sx_resolve_find(resolved, "CUser::ReadOwnershipStoreEntry"));
     sx_hooks_ctx_set_helpers(
         sx_resolve_find(resolved, "IClientUtils::GetAppID"));
 
