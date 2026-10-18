@@ -95,10 +95,6 @@ typedef struct __attribute__((packed)) {
     void    *body;              // 0x38 (0x30 up to build 1788652215)
 } CProtoBufMsg_t;
 
-// Layout established from the build 1791918634 binary:
-// header parser stores eMsg at +0x20, and the CClientJobLicenseList vtable
-// thunk passes [msg+0x38] to CUser::HandleLicenseList, which derefs it as
-// the proto body (rep cur at +0x20, rep ptr at +0x28).
 _Static_assert(offsetof(CProtoBufMsg_t, eMsg) == 0x20, "eMsg");
 _Static_assert(offsetof(CProtoBufMsg_t, body) == 0x38, "body");
 
