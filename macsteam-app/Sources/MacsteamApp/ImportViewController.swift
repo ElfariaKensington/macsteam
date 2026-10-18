@@ -585,7 +585,9 @@ final class ImportViewController: NSViewController {
         items.remove(at: row)
 
         reviewUndoManager.registerUndo(withTarget: self) { target in
-            target.insertItem(removed, at: min(row, target.items.count))
+            MainActor.assumeIsolated {
+                target.insertItem(removed, at: min(row, target.items.count))
+            }
         }
         reviewUndoManager.setActionName("Remove Game")
 
@@ -597,11 +599,13 @@ final class ImportViewController: NSViewController {
         items.insert(item, at: row)
 
         reviewUndoManager.registerUndo(withTarget: self) { target in
-            guard let back = target.items.firstIndex(where: {
-                $0.planID == item.planID
-            }) else { return }
-            target.items.remove(at: back)
-            target.reloadReviewKeepingArt()
+            MainActor.assumeIsolated {
+                guard let back = target.items.firstIndex(where: {
+                    $0.planID == item.planID
+                }) else { return }
+                target.items.remove(at: back)
+                target.reloadReviewKeepingArt()
+            }
         }
         reviewUndoManager.setActionName("Remove Game")
 

@@ -1,0 +1,47 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g. 0.8.1)"
+        required: true
+      release_notes:
+        description: "Release notes"
+        required: false
+        default: ""
+
+jobs:
+  release:
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build dylib
+        run: make -j$(sysctl -n hw.ncpu)
+
+      - name: Build config app
+        working-directory: macsteam-app
+        run: ./make_app.sh
+
+      - name: Package DMG
+        run: |
+          APP="macsteam-app/macSteam Config.app"
+          DMG="macSteam-${{ inputs.version }}.dmg"
+          hdiutil create -volname "macSteam" -srcfolder "$APP" -ov -format UDZO "$DMG"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DMG="macSteam-${{ inputs.version }}.dmg"
+          NOTES="${{ inputs.release_notes }}"
+          if [ -z "$NOTES" ]; then
+            NOTES="macSteam v${{ inputs.version }}"
+          fi
+          gh release create "v${{ inputs.version }}" "$DMG" \
+            --title "v${{ inputs.version }}" \
+            --notes "$NOTES"

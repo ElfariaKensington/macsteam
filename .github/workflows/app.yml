@@ -1,0 +1,21 @@
+name: Build
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build dylib
+        run: make -j$(sysctl -n hw.ncpu)
+
+      - name: Build config app
+        working-directory: macsteam-app
+        run: ./make_app.sh
