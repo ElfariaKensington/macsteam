@@ -25,7 +25,7 @@ The companion app can handle all the basics. It can deploy the macSteam dylib, i
 
 ## Usage
 
-Download the latest release from the [Releases page](https://github.com/Selectively11/macsteam/releases).
+Download the latest release from the [Releases page](https://github.com/crghofficial/macsteam/releases).
 
 Unzip it. Move macSteam Config to Applications. 
 
@@ -50,7 +50,7 @@ There is also a science experiment in the repo, a macSteam launcher that does no
 
 ## Contributing
 
-PRs are welcome. I could currently badly use a **real name** and an **icon**. I'll be implementing more features in the coming days/weeks. I'll add proper Family Share stuff shortly with other features coming based on demand. Once the core feature set is solid, I'll bring [CloudRedirect](https://github.com/Selectively11/CloudRedirect) into the project.
+PRs are welcome. I could currently badly use a **real name** and an **icon**.
 
 ## License
 
