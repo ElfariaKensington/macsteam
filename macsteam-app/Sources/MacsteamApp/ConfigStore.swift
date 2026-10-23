@@ -44,6 +44,10 @@ final class ConfigStore {
         try mutate { $0.hideWhatsNew = on }
     }
 
+    func setHideCloudErrors(_ on: Bool) throws {
+        try mutate { $0.hideCloudErrors = on }
+    }
+
     // MARK: - conflict + backup internals
 
     private func reconcileWithDiskIfChanged() {

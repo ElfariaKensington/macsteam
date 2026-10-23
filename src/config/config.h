@@ -26,6 +26,7 @@ typedef struct sx_config {
     int dk_count;
 
     int hide_whats_new;
+    int hide_cloud_errors;
 } sx_config_t;
 
 extern _Atomic(sx_config_t *) sx_config_current;

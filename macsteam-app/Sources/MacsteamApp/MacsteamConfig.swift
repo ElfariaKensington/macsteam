@@ -22,6 +22,7 @@ struct MacsteamConfig: Equatable {
     var appParents: [Int: Int] = [:]
 
     var hideWhatsNew = false
+    var hideCloudErrors = false
 }
 
 // MARK: - Helpers
@@ -112,6 +113,7 @@ extension MacsteamConfig {
                 if let (k, v) = Self.splitKV(t) {
                     switch k {
                     case "HideWhatsNew": cfg.hideWhatsNew = Self.parseBool(v)
+                    case "HideCloudErrors": cfg.hideCloudErrors = Self.parseBool(v)
                     default: break
                     }
                 }
@@ -194,6 +196,7 @@ extension MacsteamConfig {
         }
 
         out += "HideWhatsNew: \(hideWhatsNew ? "yes" : "no")\n"
+        out += "HideCloudErrors: \(hideCloudErrors ? "yes" : "no")\n"
         out += "\n"
 
         if !apps.isEmpty {
