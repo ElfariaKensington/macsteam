@@ -11,6 +11,7 @@ typedef enum {
     SX_ANCHOR_STRING,             // fn that PC-relative references a C string
     SX_ANCHOR_VTABLE_SLOT,        // code ptr stored at a data VA
     SX_ANCHOR_INSN_AFTER_STRING,  // insn after the Nth `mnem` past a string ref
+    SX_ANCHOR_NTH_REF,            // Nth ADRP+ADD ref to any instance of a string
 } sx_anchor_kind_t;
 
 typedef struct {
@@ -19,7 +20,7 @@ typedef struct {
     uintptr_t        va;         // VTABLE_SLOT (unslid)
     uint32_t         insn;       // INSN_AFTER_STRING: opcode-match value
     uint32_t         insn_mask;  // INSN_AFTER_STRING: opcode mask
-    int              nth;        // INSN_AFTER_STRING: which match (1-based)
+    int              nth;        // INSN_AFTER_STRING / NTH_REF: which match (1-based)
 } sx_anchor_t;
 
 // Runtime address with slide applied, or 0.

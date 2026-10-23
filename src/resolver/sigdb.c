@@ -66,6 +66,11 @@ static void parse_anchor(cJSON *sig, sx_anchor_t *a) {
         a->kind = SX_ANCHOR_VTABLE_SLOT;
         cJSON *v = cJSON_GetObjectItem(obj, "va");
         a->va = parse_hex_addr((v && cJSON_IsString(v)) ? v->valuestring : "0");
+    } else if (strcmp(k->valuestring, "nth_ref") == 0) {
+        a->kind = SX_ANCHOR_NTH_REF;
+        json_copy_str(obj, "value", a->str, sizeof(a->str));
+        cJSON *n = cJSON_GetObjectItem(obj, "n");
+        a->nth = (n && cJSON_IsNumber(n)) ? n->valueint : 1;
     }
 }
 
