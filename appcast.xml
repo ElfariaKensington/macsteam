@@ -5,6 +5,18 @@
     <description>Most recent changes for macSteam Config.</description>
     <language>en</language>
     <item>
+      <title>Version 0.8.2</title>
+      <pubDate>Thu, 23 Oct 2026 04:38:12 +0000</pubDate>
+      <sparkle:version>13</sparkle:version>
+      <sparkle:shortVersionString>0.8.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<ul><li>Support Steam build 1792618285</li><li>Anchor-based signature resolution survives Steam updates</li></ul>]]></description>
+      <enclosure url="https://github.com/crghofficial/macsteam/releases/download/v0.8.2/macSteam-0.8.2.dmg"
+                 type="application/octet-stream"
+                 sparkle:edSignature="JbFolplpUxOeBh0FZk9FY6Lk6PoFmoCM7vgLrhU12HZ+ZFpkDMW586BjcL/Yj9p4err9UOilXF1zQcn1vGQXCg=="
+                 length="1882787" />
+    </item>
+    <item>
       <title>Version 0.8.0</title>
       <pubDate>Wed, 23 Sep 2026 11:46:16 -0400</pubDate>
       <sparkle:version>11</sparkle:version>
