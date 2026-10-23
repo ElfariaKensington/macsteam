@@ -23,6 +23,26 @@ Pretty boring.
 
 The companion app can handle all the basics. It can deploy the macSteam dylib, it can import games, you can use it to remove games from your unlock list, you can toggle the features that support being toggled (with more to come). You can also edit the config by hand by going to ```~/Library/Application Support/macSteam``` and editing the config file.
 
+In macSteam Settings, **Hide Steam Cloud errors** optionally hides library Cloud
+error indicators and Cloud failure/conflict notifications without disabling syncing.
+Error-only Cloud columns collapse completely, and sidebar titles retain their
+normal installed/uninstalled colors. It continues past game-launch Cloud warnings
+using Steam’s “play anyway” action, without choosing local or remote saves. It defaults to off. Restart Steam
+after changing it; turning it off restores the original UI. The config key is
+`HideCloudErrors: yes` (or `no`).
+
+The Cloud patch discovers render functions and callbacks from semantic UI names;
+it does not depend on minified variable names or CSS hashes. It reapplies to new
+bundles at startup and preserves file size. Recovery copies are keyed to the
+patched bundle’s SHA-256, so restoring the toggle cannot overwrite a Steam update
+with an old bundle. If a future structure is unrecognized, the bundle stays
+untouched and the reason is logged.
+
+Regression check against an unmodified Steam bundle:
+```bash
+python3 scripts/tests/cloud_errors.py /path/to/steamui/sp.js
+```
+
 ## Usage
 
 Download the latest release from the [Releases page](https://github.com/crghofficial/macsteam/releases).

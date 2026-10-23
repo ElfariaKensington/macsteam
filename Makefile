@@ -6,11 +6,11 @@ MIN_VER  := 15.0
 CFLAGS   := -arch $(ARCH) -mmacosx-version-min=$(MIN_VER) \
             -std=c17 -O2 -Wall -Wextra -Wno-unused-parameter \
             -fPIC -MMD -MP \
-            -Isrc -Ivendor -Ivendor/dobby/include
+            -Isrc -Ivendor -Ivendor/dobby/include -Iout
 LDFLAGS  := -arch $(ARCH) -mmacosx-version-min=$(MIN_VER) \
             -dynamiclib -install_name @rpath/macsteam.dylib
 
-FRAMEWORKS := -framework CoreFoundation -framework CFNetwork
+FRAMEWORKS := -framework CoreFoundation -framework CFNetwork -framework JavaScriptCore
 
 DOBBY_REV := 5dfc8546954ce3b3198132ab13fddb89ee92cdd7
 DOBBY_DIR := build
@@ -54,6 +54,7 @@ SRCS := src/core/loader.c \
         src/hooks/hook_stats.c \
         src/hooks/hook_ticket.c \
         src/hooks/hook_whatsnew.c \
+        src/hooks/hook_clouderrors.c \
         vendor/cJSON.c
 
 OUT_DIR  := out
@@ -81,6 +82,12 @@ $(TARGET): $(ARM64_DYLIB) $(X86_STUB)
 	lipo -create $^ -output $@
 	codesign -fs - $@
 	@echo "==> Built: $@"
+
+$(OUT_DIR)/src/hooks/hook_clouderrors.o: $(OUT_DIR)/cloud_errors_js.inc
+
+$(OUT_DIR)/cloud_errors_js.inc: src/hooks/cloud_errors.js
+	@mkdir -p $(dir $@)
+	xxd -i < $< > $@
 
 $(OUT_DIR)/%.o: %.c
 	@mkdir -p $(dir $@)

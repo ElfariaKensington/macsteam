@@ -117,6 +117,8 @@ int sx_config_load(const char *path, sx_config_t *cfg) {
             if (val) {
                 if (strncmp(trimmed, "HideWhatsNew", 12) == 0)
                     cfg->hide_whats_new = parse_bool(val);
+                else if (strncmp(trimmed, "HideCloudErrors:", 16) == 0)
+                    cfg->hide_cloud_errors = parse_bool(val);
             }
             continue;
         }

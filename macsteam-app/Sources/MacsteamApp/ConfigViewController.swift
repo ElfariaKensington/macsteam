@@ -10,6 +10,7 @@ final class ConfigViewController: NSViewController {
     private var currentSection: Section = .settings
 
     var hideWhatsNewSwitch: NSSwitch!
+    private var hideCloudErrorsSwitch: NSSwitch!
     private var checkUpdateButton: NSButton?
     private var autoUpdateSwitch: NSSwitch?
     private var updaterSub: AnyCancellable?
@@ -108,10 +109,19 @@ final class ConfigViewController: NSViewController {
         hideWhatsNewSwitch.action = #selector(settingsChanged)
         hideWhatsNewSwitch.setAccessibilityLabel("Hide What's New shelf")
 
+        hideCloudErrorsSwitch = NSSwitch()
+        hideCloudErrorsSwitch.state = store.config.hideCloudErrors ? .on : .off
+        hideCloudErrorsSwitch.target = self
+        hideCloudErrorsSwitch.action = #selector(cloudErrorsChanged)
+        hideCloudErrorsSwitch.setAccessibilityLabel("Hide Steam Cloud errors")
+
         let togglesCard = SettingsCard(rows: [
             SettingRow(title: "Hide What's New shelf",
                        subtitle: nil,
                        control: hideWhatsNewSwitch),
+            SettingRow(title: "Hide Steam Cloud errors",
+                       subtitle: "Hide error indicators and notifications; skip launch warnings. Cloud sync stays on. Restart Steam to apply.",
+                       control: hideCloudErrorsSwitch),
         ])
 
         let generalHeader = settingsGroupLabel("General")
@@ -179,6 +189,10 @@ final class ConfigViewController: NSViewController {
 
     @objc private func settingsChanged() {
         persisting { try store.setHideWhatsNew(hideWhatsNewSwitch.state == .on) }
+    }
+
+    @objc private func cloudErrorsChanged() {
+        persisting { try store.setHideCloudErrors(hideCloudErrorsSwitch.state == .on) }
     }
 
     @objc private func checkForUpdatesTapped() {
