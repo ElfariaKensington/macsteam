@@ -54,6 +54,7 @@ SRCS := src/core/loader.c \
         src/hooks/hook_stats.c \
         src/hooks/hook_ticket.c \
         src/hooks/hook_whatsnew.c \
+        src/hooks/hook_librarysharing.c \
         vendor/cJSON.c
 
 OUT_DIR  := out
