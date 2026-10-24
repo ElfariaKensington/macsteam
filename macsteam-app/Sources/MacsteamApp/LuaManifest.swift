@@ -72,6 +72,11 @@ struct LuaScript {
 }
 
 enum LuaManifestParser {
+    static func containsAddApp(_ rawText: String) -> Bool {
+        let pattern = #"(?m)^\s*addappid\s*\(\s*\d+"#
+        return rawText.range(of: pattern, options: .regularExpression) != nil
+    }
+
     private static let addAppRe = try! NSRegularExpression(
         pattern: #"addappid\s*\(\s*(\d+)\s*(?:,\s*\d+\s*(?:,\s*"([0-9a-fA-F]+)"\s*)?)?\)"#
     )
