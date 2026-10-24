@@ -1,19 +1,40 @@
-// Manifest request code via opensteamtool API
+// Manifest request code via ManifestDeX (OpenSteamTool provider PR #200).
 #include "hooks.h"
 #include "../config/config.h"
 #include "../util/log.h"
 #include <stdint.h>
+#include <ctype.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <CFNetwork/CFNetwork.h>
 
-#define MANIFEST_API_FMT "http://gmrc.wudrm.com/manifest/%llu"
-#define MANIFEST_UA      "OpenSteamTool/1.0"
+#define MANIFEST_API_FMT "https://manifest.manifestdex.com/%llu"
+#define MANIFEST_UA      "ManifestDeX/1.0"
 
 static void *orig_GetManifestRequestCode = NULL;
 
 typedef uint32_t (*fn_GetManifestRequestCode)(void *self, uint32_t app_id,
                                                 uint32_t depot_id, uint64_t manifest_id,
                                                 const char *branch, uint64_t *pRequestCode);
+
+// Parse as an integer: request codes can exceed both INT64_MAX and 2^53.
+static int parse_manifest_code(const char *body, uint64_t *out_code) {
+    if (!body || !out_code) return -1;
+    while (isspace((unsigned char)*body)) ++body;
+    const char *digits = body;
+    while (*body >= '0' && *body <= '9') ++body;
+    size_t count = (size_t)(body - digits);
+    if (!count || count > 20) return -1;
+    while (isspace((unsigned char)*body)) ++body;
+    if (*body) return -1;
+    errno = 0;
+    unsigned long long code = strtoull(digits, NULL, 10);
+    if (errno == ERANGE || !code) return -1;
+    *out_code = (uint64_t)code;
+    return 0;
+}
 
 // Fetch manifest request code from the remote API. Returns 0 on success.
 static int fetch_manifest_code(uint64_t manifest_id, uint64_t *out_code) {
@@ -45,23 +66,30 @@ static int fetch_manifest_code(uint64_t manifest_id, uint64_t *out_code) {
 
     UInt8 buf[64];
     CFIndex total = 0;
+    int read_failed = 0;
     while (total < (CFIndex)(sizeof(buf) - 1)) {
         CFIndex n = CFReadStreamRead(stream, buf + total, (CFIndex)(sizeof(buf) - 1) - total);
-        if (n <= 0) break;
+        if (n <= 0) { read_failed = n < 0; break; }
         total += n;
     }
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    CFHTTPMessageRef response = (CFHTTPMessageRef)CFReadStreamCopyProperty(
+        stream, kCFStreamPropertyHTTPResponseHeader);
+#pragma clang diagnostic pop
+    CFIndex status = response ? CFHTTPMessageGetResponseStatusCode(response) : 0;
+    if (response) CFRelease(response);
     CFReadStreamClose(stream);
     CFRelease(stream);
 
-    if (total <= 0) return -1;
-
+    if (read_failed || status != 200 || total <= 0 || total == (CFIndex)(sizeof(buf) - 1)) {
+        SX_WARN("manifest provider failed: manifest=%llu HTTP=%ld read_error=%d",
+                (unsigned long long)manifest_id, (long)status, read_failed);
+        return -1;
+    }
     buf[total] = '\0';
-    char *end = NULL;
-    unsigned long long code = strtoull((const char *)buf, &end, 10);
-    if (end == (char *)buf || code == 0) return -1;
-
-    *out_code = (uint64_t)code;
-    return 0;
+    if (memchr(buf, '\0', (size_t)total)) return -1;
+    return parse_manifest_code((const char *)buf, out_code);
 }
 
 static uint32_t hook_GetManifestRequestCode(void *self, uint32_t app_id,
@@ -76,14 +104,14 @@ static uint32_t hook_GetManifestRequestCode(void *self, uint32_t app_id,
         if (fetch_manifest_code(manifest_id, &code) == 0 && pRequestCode) {
             *pRequestCode = code;
             SX_LOG_ONCE_KEY(depot_id,
-                    "GetManifestRequestCode: app=%u depot=%u manifest=0x%llx -> opensteamtool code=0x%llx",
+                    "GetManifestRequestCode: app=%u depot=%u manifest=0x%llx -> manifestdex code=0x%llx",
                     app_id, depot_id, (unsigned long long)manifest_id,
                     (unsigned long long)code);
             return 1;
         }
         // API failed, fall through to original
         SX_LOG_ONCE_KEY(depot_id,
-                "GetManifestRequestCode: app=%u depot=%u manifest=0x%llx -> opensteamtool FAILED, passthrough",
+                "GetManifestRequestCode: app=%u depot=%u manifest=0x%llx -> manifestdex FAILED, passthrough",
                 app_id, depot_id, (unsigned long long)manifest_id);
     }
 

@@ -133,7 +133,7 @@ $(ANCHOR_PROBE_BIN): $(ANCHOR_PROBE_SRC) src/resolver/anchor.c src/core/macho.c 
 	$(CC) -std=c17 -Wall -Wextra -Isrc -o $@ $(ANCHOR_PROBE_SRC) src/util/log.c src/util/file.c
 	@echo "==> Built probe: $@"
 
-test: test-onlinefix
+test: test-onlinefix test-manifest
 	@if [ ! -d macsteam-app/Tests ]; then echo "==> No existing app tests, skipping app test suite."; exit 0; fi; \
 	 $(MAKE) $(PROBE_BIN) $(STATS_PROBE_BIN) $(AOB_PROBE_BIN) $(ANCHOR_PROBE_BIN); \
 	 echo "==> Running C stats-resolver probe..."; \
@@ -190,3 +190,12 @@ $(OUT_DIR)/tests/onlinefix_config: tests/onlinefix_config.swift macsteam-app/Sou
 test-onlinefix: $(ONLINEFIX_PROBE) $(OUT_DIR)/tests/onlinefix_config
 	$(OUT_DIR)/tests/onlinefix_config $(OUT_DIR)/tests/onlinefix-config.yaml
 	$(ONLINEFIX_PROBE) $(OUT_DIR)/tests/onlinefix-config.yaml
+
+MANIFEST_PROBE := $(OUT_DIR)/tests/manifest_probe
+$(MANIFEST_PROBE): tests/manifest_probe.c src/hooks/hook_manifest.c src/config/config.c src/util/log.c src/util/file.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -o $@ tests/manifest_probe.c src/config/config.c src/util/log.c src/util/file.c $(FRAMEWORKS)
+
+.PHONY: test-manifest
+test-manifest: $(MANIFEST_PROBE)
+	$(MANIFEST_PROBE)
