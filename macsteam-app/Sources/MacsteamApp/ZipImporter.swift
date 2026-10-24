@@ -76,14 +76,21 @@ enum ZipImporter {
         return plans
     }
 
-    static func buildPlan(fromLua lua: URL) throws -> ImportPlan {
+    static func buildPlan(fromLuaText luaText: String, source: URL) throws -> ImportPlan {
+        guard LuaManifestParser.containsAddApp(luaText) else {
+            throw ImportError.noLua
+        }
+
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(extractPrefix)\(UUID().uuidString)", isDirectory: true)
+        return makePlan(source: source, extractDir: tmp, luaText: luaText, manifests: [])
+    }
 
+    static func buildPlan(fromLua lua: URL) throws -> ImportPlan {
         let luaText: String
         do { luaText = try String(contentsOf: lua, encoding: .utf8) }
         catch { throw ImportError.luaReadFailed(lua.lastPathComponent, error) }
-        return makePlan(source: lua, extractDir: tmp, luaText: luaText, manifests: [])
+        return try buildPlan(fromLuaText: luaText, source: lua)
     }
 
     // Scan a directory for game plans. Handles both flat (lua + manifests at root)
