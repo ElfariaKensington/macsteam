@@ -263,6 +263,7 @@ static void sx_init(void) {
     }
 
     remove_crash_sentinel();
+    sx_clouderrors_patch_installed_js();
     sx_whatsnew_patch_installed_css();
 
     SX_LOG("macsteam loaded into %s (pid %d)", getprogname(), getpid());

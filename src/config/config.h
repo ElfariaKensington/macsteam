@@ -34,6 +34,7 @@ typedef struct sx_config {
     int hide_whats_new;
     sx_onlinefix_game_t *onlinefix_games;
     int onlinefix_count;
+    int hide_cloud_errors;
 } sx_config_t;
 
 extern _Atomic(sx_config_t *) sx_config_current;
