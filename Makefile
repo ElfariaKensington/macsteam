@@ -54,6 +54,10 @@ SRCS := src/core/loader.c \
         src/hooks/hook_stats.c \
         src/hooks/hook_ticket.c \
         src/hooks/hook_whatsnew.c \
+        src/onlinefix/onlinefix.c \
+        src/onlinefix/session.c \
+        src/onlinefix/config.c \
+        $(wildcard src/onlinefix/patch/universal/*.c) \
         vendor/cJSON.c
 
 OUT_DIR  := out
@@ -81,6 +85,8 @@ $(TARGET): $(ARM64_DYLIB) $(X86_STUB)
 	lipo -create $^ -output $@
 	codesign -fs - $@
 	@echo "==> Built: $@"
+
+$(OBJS): | $(DOBBY_STAMP)
 
 $(OUT_DIR)/%.o: %.c
 	@mkdir -p $(dir $@)
@@ -127,8 +133,8 @@ $(ANCHOR_PROBE_BIN): $(ANCHOR_PROBE_SRC) src/resolver/anchor.c src/core/macho.c 
 	$(CC) -std=c17 -Wall -Wextra -Isrc -o $@ $(ANCHOR_PROBE_SRC) src/util/log.c src/util/file.c
 	@echo "==> Built probe: $@"
 
-test:
-	@if [ ! -d macsteam-app/Tests ]; then echo "==> No local tests, skipping."; exit 0; fi; \
+test: test-onlinefix
+	@if [ ! -d macsteam-app/Tests ]; then echo "==> No existing app tests, skipping app test suite."; exit 0; fi; \
 	 $(MAKE) $(PROBE_BIN) $(STATS_PROBE_BIN) $(AOB_PROBE_BIN) $(ANCHOR_PROBE_BIN); \
 	 echo "==> Running C stats-resolver probe..."; \
 	 $(STATS_PROBE_BIN); \
@@ -169,3 +175,18 @@ dobby:
 		$(MAKE) -C "$(DOBBY_DIR)" -j$$(sysctl -n hw.ncpu); \
 		echo "$(DOBBY_REV)" > "$(DOBBY_STAMP)"; \
 	fi
+
+ONLINEFIX_PROBE := $(OUT_DIR)/tests/onlinefix_probe
+ONLINEFIX_SRCS := src/onlinefix/session.c src/onlinefix/config.c $(wildcard src/onlinefix/patch/universal/*.c)
+$(ONLINEFIX_PROBE): tests/onlinefix_probe.c src/onlinefix/onlinefix.c $(ONLINEFIX_SRCS) src/config/config.c src/util/log.c src/util/file.c $(wildcard src/onlinefix/*.h src/onlinefix/patch/*.h) | $(DOBBY_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -o $@ tests/onlinefix_probe.c $(ONLINEFIX_SRCS) src/config/config.c src/util/log.c src/util/file.c
+
+.PHONY: test-onlinefix
+$(OUT_DIR)/tests/onlinefix_config: tests/onlinefix_config.swift macsteam-app/Sources/MacsteamApp/MacsteamConfig.swift
+	@mkdir -p $(dir $@)
+	xcrun swiftc $^ -o $@
+
+test-onlinefix: $(ONLINEFIX_PROBE) $(OUT_DIR)/tests/onlinefix_config
+	$(OUT_DIR)/tests/onlinefix_config $(OUT_DIR)/tests/onlinefix-config.yaml
+	$(ONLINEFIX_PROBE) $(OUT_DIR)/tests/onlinefix-config.yaml

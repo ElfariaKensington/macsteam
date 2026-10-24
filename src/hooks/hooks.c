@@ -3,6 +3,7 @@
 #include "../util/log.h"
 #include <string.h>
 #include <stdlib.h>
+#include "../onlinefix/install.h"
 
 extern int DobbyHook(void *address, void *replace_call, void **origin_call);
 typedef void (*sx_instrument_cb_t)(void *address, void *ctx);
@@ -23,7 +24,7 @@ static int name_in_env_list(const char *env, const char *name) {
     return 0;
 }
 
-static int hook_is_disabled(const char *name) {
+int sx_hook_disabled(const char *name) {
     return name_in_env_list("MACSTEAM_DISABLE", name);
 }
 
@@ -79,7 +80,7 @@ int sx_hooks_install_all(sx_resolve_result_t *resolved, int *total_out) {
             sx_hook_def_t *hk = &defs[i];
             total++;
 
-            if (hook_is_disabled(hk->name)) {
+            if (sx_hook_disabled(hk->name)) {
                 SX_WARN("[%s] %s: DISABLED via MACSTEAM_DISABLE", mod->module_name, hk->name);
                 continue;
             }
@@ -112,6 +113,8 @@ int sx_hooks_install_all(sx_resolve_result_t *resolved, int *total_out) {
             }
         }
     }
+
+    of_install_resolved(resolved);
 
     sx_hooks_relaunch_install();
 

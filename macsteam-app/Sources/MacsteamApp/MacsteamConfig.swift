@@ -12,6 +12,14 @@ struct DepotKeyGroup: Equatable {
     }
 }
 
+struct OnlineFixOptions: Equatable {
+    var keepRealAppID = false
+    var startupAppID = true
+    var overlayAppID = true
+    var inputAppID = true
+    var statsAppID = true
+}
+
 struct MacsteamConfig: Equatable {
     var apps: [Int] = []
     var packageIds: [Int] = []
@@ -22,6 +30,7 @@ struct MacsteamConfig: Equatable {
     var appParents: [Int: Int] = [:]
 
     var hideWhatsNew = false
+    var onlineFixGames: [Int: OnlineFixOptions] = [:]
 }
 
 // MARK: - Helpers
@@ -63,6 +72,7 @@ extension MacsteamConfig {
         apps.removeAll { drop.contains($0) }
         depotKeyGroups.removeAll { drop.contains($0.appID) }
         for id in drop {
+            onlineFixGames[id] = nil
             appNames[id] = nil
             appParents[id] = nil
         }
@@ -87,12 +97,13 @@ extension MacsteamConfig {
 // MARK: - Parse (lenient reader of the config.c subset)
 
 extension MacsteamConfig {
-    enum Section { case none, apps, packages, depotKeys }
+    enum Section { case none, apps, packages, depotKeys, onlineFix }
 
     static func parse(_ text: String) -> MacsteamConfig {
         var cfg = MacsteamConfig()
         var section: Section = .none
         var currentDKApp: Int? = nil
+        var currentOnlineFixApp: Int? = nil
 
         for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
             let line = String(rawLine).replacingOccurrences(of: "\r", with: "")
@@ -104,7 +115,9 @@ extension MacsteamConfig {
             if indent == 0 {
                 section = .none
                 currentDKApp = nil
+                currentOnlineFixApp = nil
 
+                if t.hasPrefix("OnlineFix:") { section = .onlineFix; continue }
                 if t.hasPrefix("Apps:")           { section = .apps; continue }
                 if t.hasPrefix("PackageIds:")     { section = .packages; continue }
                 if t.hasPrefix("DepotKeys:")      { section = .depotKeys; continue }
@@ -112,6 +125,29 @@ extension MacsteamConfig {
                 if let (k, v) = Self.splitKV(t) {
                     switch k {
                     case "HideWhatsNew": cfg.hideWhatsNew = Self.parseBool(v)
+                    default: break
+                    }
+                }
+                continue
+            }
+
+            if section == .onlineFix {
+                if indent == 2 {
+                    currentOnlineFixApp = nil
+                    if let (k, _) = Self.splitKV(t), let id = Int(k),
+                       (1...0xffffff).contains(id), id != 480 {
+                        currentOnlineFixApp = id
+                        cfg.onlineFixGames[id] = OnlineFixOptions()
+                    }
+                } else if indent == 4, let id = currentOnlineFixApp,
+                          let (k, v) = Self.splitKV(t) {
+                    let on = Self.parseBool(v)
+                    switch k {
+                    case "KeepRealAppID": cfg.onlineFixGames[id]?.keepRealAppID = on
+                    case "StartupAppID": cfg.onlineFixGames[id]?.startupAppID = on
+                    case "OverlayAppID": cfg.onlineFixGames[id]?.overlayAppID = on
+                    case "InputAppID": cfg.onlineFixGames[id]?.inputAppID = on
+                    case "StatsAppID": cfg.onlineFixGames[id]?.statsAppID = on
                     default: break
                     }
                 }
@@ -207,6 +243,20 @@ extension MacsteamConfig {
                     out += "  - \(a)\n"
                 } else {
                     out += "  - \(a)  # \(comment)\n"
+                }
+            }
+            out += "\n"
+        }
+
+        if !onlineFixGames.isEmpty {
+            out += "OnlineFix:\n"
+            for id in onlineFixGames.keys.sorted() {
+                guard let o = onlineFixGames[id] else { continue }
+                out += "  \(id):\n"
+                for (key, value) in [("KeepRealAppID", o.keepRealAppID),
+                    ("StartupAppID", o.startupAppID), ("OverlayAppID", o.overlayAppID),
+                    ("InputAppID", o.inputAppID), ("StatsAppID", o.statsAppID)] {
+                    out += "    \(key): \(value ? "yes" : "no")\n"
                 }
             }
             out += "\n"

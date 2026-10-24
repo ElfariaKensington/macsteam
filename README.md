@@ -48,6 +48,41 @@ bash make_app.sh
 
 There is also a science experiment in the repo, a macSteam launcher that does not modify the Steam app bundle in any way. It is included for the enjoyment of others, but is not intended to be used. 
 
+## OnlineFix
+
+OnlineFix routing from [SomeAppOnlineFix](https://github.com/ElfariaKensington/SomeAppOnlineFix)
+(AGPL-3.0) runs inside `macsteam.dylib`. In the config app, right-click a game in
+Apps and choose **OnlineFix…** to enable routing and select compatibility patches.
+Settings are read again on each launch, so changing them does not require restarting Steam.
+A valid original game license is still required. This routing does not itself grant ownership.
+
+Alternatively, add `-onlinefix` to a game's launch options; `-realappid` keeps its
+original AppID visible after networking starts. Without either per-game configuration
+or `-onlinefix`, macsteam leaves the game's OnlineFix identity alone.
+
+The existing `config.yaml` stores per-game options separately from the unlock list:
+
+```yaml
+OnlineFix:
+  105600:
+    KeepRealAppID: no
+    StartupAppID: yes
+    OverlayAppID: yes
+    InputAppID: yes
+    StatsAppID: yes
+```
+
+The session uses AppID 480 for networking, while the optional patches restore the
+original startup, overlay, controller and stats identities. All four patches default
+to enabled. Only one routed game per Steam process is supported. The seven required
+hooks must all resolve and install before routing activates. Profiles are included
+for Steam builds 1791918634 and 1792618285; older profiles leave routing inactive.
+`MACSTEAM_DISABLE=onlinefix` disables installation. No separate OnlineFix manager or
+dylib is required. Game-file and Wine/Photon patches from the source manager are not
+part of the Steam routing runtime.
+
+Run `make test-onlinefix` for the runtime and C/Swift config integration checks.
+
 ## Contributing
 
 PRs are welcome. I could currently badly use a **real name** and an **icon**.

@@ -13,6 +13,7 @@ enum parse_section {
     SEC_APPS,
     SEC_PACKAGE_IDS,
     SEC_DEPOT_KEYS,
+    SEC_ONLINEFIX,
 };
 
 static int indent_of(const char *line) {
@@ -97,6 +98,9 @@ int sx_config_load(const char *path, sx_config_t *cfg) {
     enum parse_section section = SEC_NONE;
     int app_cap = 0, pkg_cap = 0;
     int dk_current_app = 0;
+    int of_current = -1;
+    unsigned of_seen = 0;
+    int of_invalid = 0;
 
     while (fgets(line, sizeof(line), f)) {
         strip_trailing(line);
@@ -109,7 +113,9 @@ int sx_config_load(const char *path, sx_config_t *cfg) {
         if (indent == 0) {
             section = SEC_NONE;
             dk_current_app = 0;
+            of_current = -1;
 
+            if (section_is(trimmed, "OnlineFix")) { section = SEC_ONLINEFIX; continue; }
             if (section_is(trimmed, "Apps"))           { section = SEC_APPS; continue; }
             if (section_is(trimmed, "PackageIds"))      { section = SEC_PACKAGE_IDS; continue; }
             if (section_is(trimmed, "DepotKeys"))       { section = SEC_DEPOT_KEYS; continue; }
@@ -118,6 +124,57 @@ int sx_config_load(const char *path, sx_config_t *cfg) {
                 if (strncmp(trimmed, "HideWhatsNew", 12) == 0)
                     cfg->hide_whats_new = parse_bool(val);
             }
+            continue;
+        }
+
+        if (section == SEC_ONLINEFIX) {
+            if (of_invalid) continue;
+            if (indent == 2) {
+                of_current = -1;
+                of_seen = 0;
+                char key[64], *end = NULL;
+                if (key_before_colon(line, key, sizeof(key)) != 0) goto invalid_onlinefix;
+                long id = strtol(key, &end, 10);
+                if (!*key || *end || id < 1 || id > 0xffffff || id == 480 || value_after_colon(line))
+                    goto invalid_onlinefix;
+                // Reject duplicate game entries rather than choosing one silently.
+                for (int i = 0; i < cfg->onlinefix_count; ++i)
+                    if (cfg->onlinefix_games[i].app_id == id) goto invalid_onlinefix;
+                void *entries = realloc(cfg->onlinefix_games,
+                    (size_t)(cfg->onlinefix_count + 1) * sizeof(*cfg->onlinefix_games));
+                if (!entries) goto invalid_onlinefix;
+                cfg->onlinefix_games = entries;
+                of_current = cfg->onlinefix_count++;
+                cfg->onlinefix_games[of_current] = (sx_onlinefix_game_t){(int)id, 0, 1, 1, 1, 1};
+            } else if (indent == 4 && of_current >= 0) {
+                char key[64];
+                if (key_before_colon(line, key, sizeof(key)) != 0) goto invalid_onlinefix;
+                const char *val = value_after_colon(line);
+                if (!val) goto invalid_onlinefix;
+                int on = parse_bool(val);
+                if (!on && strcasecmp(val, "no") && strcasecmp(val, "false") && strcmp(val, "0"))
+                    goto invalid_onlinefix;
+                sx_onlinefix_game_t *g = &cfg->onlinefix_games[of_current];
+                const char *keys[] = {"KeepRealAppID", "StartupAppID", "OverlayAppID", "InputAppID", "StatsAppID"};
+                int *fields[] = {&g->keep_real_app_id, &g->startup_app_id, &g->overlay_app_id,
+                                 &g->input_app_id, &g->stats_app_id};
+                size_t k;
+                for (k = 0; k < sizeof(keys) / sizeof(keys[0]); ++k)
+                    if (!strcmp(key, keys[k])) break;
+                if (k == sizeof(keys) / sizeof(keys[0]) || (of_seen & (1u << k)))
+                    goto invalid_onlinefix;
+                of_seen |= 1u << k;
+                *fields[k] = on;
+            } else goto invalid_onlinefix;
+            continue;
+
+invalid_onlinefix:
+            // A typo in this optional feature must not discard the unlock list.
+            free(cfg->onlinefix_games);
+            cfg->onlinefix_games = NULL;
+            cfg->onlinefix_count = 0;
+            of_invalid = 1;
+            SX_ERR("config: invalid OnlineFix settings in '%s'; routing disabled", path);
             continue;
         }
 
@@ -189,6 +246,7 @@ int sx_config_load(const char *path, sx_config_t *cfg) {
 
 void sx_config_free(sx_config_t *cfg) {
     if (!cfg) return;
+    free(cfg->onlinefix_games); cfg->onlinefix_games = NULL; cfg->onlinefix_count = 0;
     free(cfg->app_ids); cfg->app_ids = NULL; cfg->app_count = 0;
     free(cfg->package_ids); cfg->package_ids = NULL; cfg->pkg_count = 0;
 }

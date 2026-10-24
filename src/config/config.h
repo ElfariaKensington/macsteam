@@ -8,6 +8,12 @@
 #define SX_CONFIG_MAX_DK       256
 #define SX_CONFIG_MAX_DEPOTS   64
 
+typedef struct {
+    int app_id;
+    int keep_real_app_id;
+    int startup_app_id, overlay_app_id, input_app_id, stats_app_id;
+} sx_onlinefix_game_t;
+
 typedef struct sx_config {
     int  *app_ids;
     int   app_count;
@@ -26,6 +32,8 @@ typedef struct sx_config {
     int dk_count;
 
     int hide_whats_new;
+    sx_onlinefix_game_t *onlinefix_games;
+    int onlinefix_count;
 } sx_config_t;
 
 extern _Atomic(sx_config_t *) sx_config_current;

@@ -316,6 +316,47 @@ final class AppCardListView: NSObject, NSOutlineViewDataSource, NSOutlineViewDel
         return selected.sorted()
     }
 
+    @objc private func configureOnlineFix(_ sender: NSMenuItem) {
+        let id = sender.tag
+        let options = store.config.onlineFixGames[id] ?? OnlineFixOptions()
+        let alert = NSAlert()
+        alert.messageText = "OnlineFix — \(displayName(for: id))"
+        alert.informativeText = "Routes this game's Steam session through AppID 480. Changes apply on the next game launch. Only one routed game can run at a time."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        let labels = ["Enable OnlineFix", "Keep real AppID", "Restore AppID at startup",
+                      "Restore overlay AppID", "Restore controller AppID", "Restore stats AppID"]
+        let values = [store.config.onlineFixGames[id] != nil, options.keepRealAppID,
+                      options.startupAppID, options.overlayAppID, options.inputAppID, options.statsAppID]
+        let controls = zip(labels, values).map { label, value in
+            let button = NSButton(checkboxWithTitle: label, target: nil, action: nil)
+            button.state = value ? .on : .off
+            return button
+        }
+        let stack = NSStackView(views: controls)
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 8
+        stack.frame = NSRect(x: 0, y: 0, width: 320, height: 180)
+        alert.accessoryView = stack
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do {
+            try store.mutate { config in
+                config.onlineFixGames[id] = controls[0].state == .on ? OnlineFixOptions(
+                    keepRealAppID: controls[1].state == .on,
+                    startupAppID: controls[2].state == .on,
+                    overlayAppID: controls[3].state == .on,
+                    inputAppID: controls[4].state == .on,
+                    statsAppID: controls[5].state == .on) : nil
+            }
+        } catch {
+            let failure = NSAlert()
+            failure.messageText = "Couldn’t save OnlineFix settings"
+            failure.informativeText = error.localizedDescription
+            failure.runModal()
+        }
+    }
+
     @objc private func removeMenuItem() { removeSelected() }
 
     // MARK: - naming
@@ -379,6 +420,15 @@ extension AppCardListView: NSMenuDelegate {
         menu.removeAllItems()
         let rows = targetRows()
         guard !rows.isEmpty else { return }
+
+        if rows.count == 1, let node = outline.item(atRow: rows[0]) as? AppNode,
+           (1...0xffffff).contains(node.appID), node.appID != 480 {
+            let onlineFix = NSMenuItem(title: "OnlineFix…", action: #selector(configureOnlineFix(_:)), keyEquivalent: "")
+            onlineFix.target = self
+            onlineFix.tag = node.appID
+            menu.addItem(onlineFix)
+            menu.addItem(.separator())
+        }
 
         let title = removeMenuTitle(for: rows)
         let item = NSMenuItem(title: title, action: #selector(removeMenuItem), keyEquivalent: "")

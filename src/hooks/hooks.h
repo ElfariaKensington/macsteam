@@ -60,6 +60,7 @@ void sx_whatsnew_patch_installed_css(void);
 
 int sx_hooks_install_all(sx_resolve_result_t *resolved, int *total_out);
 
+int sx_hook_disabled(const char *name);
 int sx_hook_passthrough(const char *name);
 
 #endif // MACSTEAM_HOOKS_HOOKS_H
