@@ -18,7 +18,7 @@ void of_networking(void);
 static void launch_hook(void *pc, DobbyRegisterContext *registers) {
     (void)pc;
     if (of_ready) of_start((const char *)registers->general.regs.x2,
-                          (uint64_t *)registers->general.regs.x4);
+                          (const uint64_t *)registers->general.regs.x4);
 }
 
 static uint32_t session_hook(void *engine, uint32_t game, uint8_t update) {

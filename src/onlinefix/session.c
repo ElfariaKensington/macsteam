@@ -38,7 +38,7 @@ OFSession of_session(void) {
     return result;
 }
 
-void of_start(const char *command, uint64_t *game) {
+void of_start(const char *command, const uint64_t *game) {
     OFSession next = {.patches = OF_DEFAULT_PATCHES};
     if (game && *game > 0 && *game <= 0xffffff && *game != 480) {
         bool keep = false;
@@ -46,7 +46,7 @@ void of_start(const char *command, uint64_t *game) {
         if (configured || of_argument(command, "-onlinefix")) {
             next.game = (uint32_t)*game;
             next.keep_id = keep || of_argument(command, "-realappid");
-            *game = 480;
+            // Keep the launch ID intact: Steam uses it to track the running game.
         }
     }
     pthread_mutex_lock(&lock);

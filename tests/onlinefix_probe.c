@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
     write_config(config, defaults);
     uint64_t game = 105600;
     of_start("game", &game);
-    assert(game == 480 && of_session().game == 105600 && !of_session().keep_id);
+    assert(game == 105600 && of_session().game == 105600 && !of_session().keep_id);
     assert(of_identity(of_session(), 480) == 105600);
     of_networking(); assert(of_identity(of_session(), 480) == 480);
     game = 105600; of_start("game -realappid", &game); of_networking();
@@ -61,10 +61,10 @@ int main(int argc, char **argv) {
     game = 413150; of_start("game", &game);
     assert(game == 413150 && !of_session().game); // Apps alone never enable routing.
     game = 413150; of_start("game -onlinefix", &game);
-    assert(game == 480 && of_session().game == 413150);
+    assert(game == 413150 && of_session().game == 413150);
     assert(of_patch_input(of_session(), 480) == 413150);
-    uint64_t launch_id = 480, overlay_id = 480;
-    of_patch_overlay(of_session(), &launch_id, &overlay_id);
+    uint64_t launch_id = 413150, overlay_id = 413150;
+    of_patch_environment(of_session(), &launch_id, &overlay_id);
     assert(launch_id == 480 && overlay_id == 413150);
     unsigned char payload[20] = {0}, output[20];
     memcpy(payload, &launch_id, 8);
@@ -75,8 +75,8 @@ int main(int argc, char **argv) {
     assert(!of_patch_stats(of_session(), 999, payload, 20, output));
     write_config(config, "OnlineFix:\n  105600:\n    StartupAppID: no\n    OverlayAppID: no\n    InputAppID: no\n    StatsAppID: no\n");
     game = 105600; of_start("game", &game);
-    assert(game == 480 && of_identity(of_session(), 480) == 480);
-    overlay_id = 480; of_patch_overlay(of_session(), &launch_id, &overlay_id);
+    assert(game == 105600 && of_identity(of_session(), 480) == 480);
+    launch_id = overlay_id = 105600; of_patch_environment(of_session(), &launch_id, &overlay_id);
     assert(overlay_id == 480 && of_patch_input(of_session(), 480) == 480);
     assert(!of_patch_stats(of_session(), 1101, payload, 20, output));
     const char *invalid[] = {
@@ -113,6 +113,39 @@ int main(int argc, char **argv) {
     of_ready = true;
     assert(session_hook(NULL, 105600, 0) == 17 && observed == 480);
     assert(session_hook(NULL, 999, 0) == 17 && observed == 999);
+    // Actual hook boundary: process tracking keeps 620; only child env uses 480.
+    game = 620;
+    DobbyRegisterContext launch_regs = {0};
+    launch_regs.general.regs.x2 = (uintptr_t)"portal2.exe -onlinefix";
+    launch_regs.general.regs.x4 = (uintptr_t)&game;
+    launch_hook(NULL, &launch_regs);
+    assert(game == 620 && of_session().game == 620);
+    assert(session_hook(NULL, 620, 0) == 17 && observed == 480);
+    uint64_t env_game = game, env_original = game, env_overlay = game;
+    DobbyRegisterContext env_regs = {0};
+    env_regs.general.regs.x1 = (uintptr_t)&env_game;
+    env_regs.general.regs.x2 = (uintptr_t)&env_original;
+    env_regs.general.regs.x4 = (uintptr_t)&env_overlay;
+    dobby_instrument_callback_t environment = (void *)of_overlay_hook.replacement;
+    environment(NULL, &env_regs);
+    assert(game == 620 && env_game == 480 && env_original == 620 && env_overlay == 620);
+    OFSession disabled_overlay = of_session();
+    disabled_overlay.patches.overlay_id = false;
+    env_game = env_overlay = 620;
+    of_patch_environment(disabled_overlay, &env_game, &env_overlay);
+    assert(env_game == 480 && env_overlay == 480 && game == 620);
+    env_game = env_overlay = 999;
+    of_patch_environment(of_session(), &env_game, &env_overlay);
+    assert(env_game == 999 && env_overlay == 999);
+    env_game = 620;
+    of_patch_environment(of_session(), &env_game, &env_game);
+    assert(env_game == 620); // Never overwrite aliased tracking storage.
+    env_game = env_overlay = 620;
+    of_ready = false;
+    environment(NULL, &env_regs);
+    assert(env_game == 620 && env_overlay == 620);
+    of_ready = true;
+    game = 105600; of_start("game", &game);
     unsigned char request[4], response[32] = {0};
     uint32_t method = 0x09607ec4; memcpy(request, &method, 4);
     IPCBuffer in = {.bytes=request, .capacity=4, .written=4, .extent=4};
@@ -145,7 +178,7 @@ int main(int argc, char **argv) {
     if (argc > 1) {
         setenv("MACSTEAM_CONFIG", argv[1], 1);
         game = 105600; of_start("game", &game);
-        assert(game == 480 && of_session().keep_id && !of_session().patches.stats_id);
+        assert(game == 105600 && of_session().keep_id && !of_session().patches.stats_id);
         assert(of_session().patches.overlay_id);
     }
     unlink(config);
