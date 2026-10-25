@@ -58,6 +58,7 @@ void sx_hooks_ctx_set_helpers(uintptr_t getappid);
 void sx_hooks_relaunch_install(void);
 void sx_whatsnew_patch_installed_css(void);
 void sx_clouderrors_patch_installed_js(void);
+void sx_librarysharing_patch_installed_js(void);
 
 int sx_hooks_install_all(sx_resolve_result_t *resolved, int *total_out);
 

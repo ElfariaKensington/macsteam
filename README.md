@@ -19,6 +19,13 @@ Manifest request codes are fetched from ManifestDeX over HTTPS, using the provid
 
 Pretty boring. 
 
+On Steam startup, macsteam also hides the “From the library of…” row (including
+the lender avatar/status) and the legacy library-sharing retirement notice.
+The patch preserves the JavaScript file's byte length to avoid triggering Steam's
+startup size repair, and reapplies when macsteam loads after an update. It only
+changes the UI; sharing permissions are unaffected. Unknown bundle signatures
+are left unchanged, and Steam updates may require updating the signatures.
+
 ## macSteam Config
 
 The companion app can handle all the basics. It can deploy the macSteam dylib, it can import games, you can use it to remove games from your unlock list, you can toggle the features that support being toggled (with more to come). You can also edit the config by hand by going to ```~/Library/Application Support/macSteam``` and editing the config file.

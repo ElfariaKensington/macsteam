@@ -59,6 +59,7 @@ SRCS := src/core/loader.c \
         src/onlinefix/config.c \
         $(wildcard src/onlinefix/patch/universal/*.c) \
         src/hooks/hook_clouderrors.c \
+        src/hooks/hook_librarysharing.c \
         vendor/cJSON.c
 
 OUT_DIR  := out
