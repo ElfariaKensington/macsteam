@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 
 typedef void (*fn_put_bytes)(void *buf, const void *src, int len);
 typedef void (*fn_put_tag)(void *buf, unsigned tag);
@@ -34,6 +35,11 @@ typedef int64_t (*fn_get_ticket_impl)(void *self, uint32_t appId, void *buf,
                                        uint32_t *pSigSize);
 
 #define SOURCE_APPID       7
+static _Atomic(uint32_t) g_source_app = SOURCE_APPID;
+uint32_t sx_ticket_source_app(void) { return atomic_load(&g_source_app); }
+void sx_ticket_set_source_app(uint32_t app_id) {
+    if (app_id) atomic_store(&g_source_app, app_id);
+}
 #define MAX_TICKET_BUF     4096
 
 static int should_forge(uint32_t app_id) {
@@ -103,7 +109,8 @@ int sx_ticket_serve_extended(void *server_this, void *reqReader, void *respWrite
 
     uint32_t src_off_app = 0, src_off_steam = 0, src_off_sig = 0, src_sig_size = 0;
     fn_get_ticket_impl impl = *(fn_get_ticket_impl *)(*(uintptr_t *)server_this + IMPL_VTABLE_SLOT);
-    int64_t src_len = impl(server_this, SOURCE_APPID, source_buf, MAX_TICKET_BUF,
+    uint32_t source_app = sx_ticket_source_app();
+    int64_t src_len = impl(server_this, source_app, source_buf, MAX_TICKET_BUF,
                            &src_off_app, &src_off_steam, &src_off_sig, &src_sig_size);
 
     uint32_t body_len = src_off_sig;
@@ -111,8 +118,8 @@ int sx_ticket_serve_extended(void *server_this, void *reqReader, void *respWrite
 
     if (src_len <= 0 || body_len == 0 || sig_size == 0 ||
         body_len + sig_size != (uint32_t)src_len) {
-        SX_WARN("GetAppOwnershipTicketExtendedData: appid-7 ticket invalid (len=%lld, sigOff=%u, sigSize=%u, impl=%p)",
-                (long long)src_len, body_len, sig_size, (void *)impl);
+        SX_WARN("GetAppOwnershipTicketExtendedData: source %u ticket invalid (len=%lld, sigOff=%u, sigSize=%u, impl=%p)",
+                source_app, (long long)src_len, body_len, sig_size, (void *)impl);
         free(source_buf);
         return 0;
     }
@@ -142,8 +149,8 @@ int sx_ticket_serve_extended(void *server_this, void *reqReader, void *respWrite
                        body_len + 4,
                        sig_size);
 
-    SX_LOG("GetAppOwnershipTicketExtendedData: FORGED app %u (source=7, bodyLen=%u, sigOff=%u->%u, physical=%u, reported=%u)",
-           req_appId, body_len, src_off_sig, body_len + 4, forged_physical, reported_size);
+    SX_LOG("GetAppOwnershipTicketExtendedData: FORGED app %u (source=%u, bodyLen=%u, sigOff=%u->%u, physical=%u, reported=%u)",
+           req_appId, source_app, body_len, src_off_sig, body_len + 4, forged_physical, reported_size);
 
     free(forged);
     free(source_buf);

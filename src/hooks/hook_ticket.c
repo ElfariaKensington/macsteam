@@ -1,6 +1,9 @@
 // Ticket trickery
 #include "hooks.h"
 #include "../feats/ticket.h"
+#include "../config/config.h"
+#include <mach/mach.h>
+#include <mach/mach_vm.h>
 #include "../util/log.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -8,6 +11,9 @@
 #include <string.h>
 
 #define METHOD_HASH_EXTENDED_DATA 0xC7E71245u
+#define METHOD_HASH_UPDATE_TICKET 0xCEDD4F18u
+#define UPDATE_TICKET_FENCE_DELTA 0x003DC67Au
+#define TICKET_REFRESH_SOURCE_APPID 7u
 
 static void *orig_ServerDispatch = NULL;
 
@@ -33,6 +39,43 @@ static uint32_t peek_method_hash(void *reqReader) {
     return *(uint32_t *)((uint8_t *)data + cur);
 }
 
+// Audited in ARM64 Steam 1792618285 at 0x812cc4: appid:u32,
+// request_new:bool, fence:u32; the reply remains the native bool response.
+static uint8_t *managed_ticket_update_argument(void *reader) {
+    if (!reader || sx_hook_passthrough("TicketForge")) return NULL;
+    uint8_t *object = reader;
+    uint8_t *data = *(uint8_t **)object;
+    int32_t current = *(int32_t *)(object + 16);
+    int32_t end = *(int32_t *)(object + 24);
+    if (!data || current < 0 || end < current || end - current < 13) return NULL;
+    uint8_t *payload = data + current;
+    uint32_t method, appid, fence;
+    memcpy(&method, payload, 4);
+    memcpy(&appid, payload + 4, 4);
+    memcpy(&fence, payload + 9, 4);
+    if (method != METHOD_HASH_UPDATE_TICKET || payload[8] > 1 ||
+        fence != METHOD_HASH_UPDATE_TICKET + UPDATE_TICKET_FENCE_DELTA ||
+        appid == TICKET_REFRESH_SOURCE_APPID) return NULL;
+    sx_config_t *cfg = sx_config_current;
+    if (!cfg || !sx_config_has_app(cfg, (int)appid)) return NULL;
+
+    // IPC input can be borrowed read-only memory. Preserve native handling in
+    // that case; never change VM protections or copy a private CUtlBuffer layout.
+    mach_vm_address_t region = (mach_vm_address_t)(uintptr_t)(payload + 4);
+    mach_vm_size_t length = 0;
+    vm_region_basic_info_data_64_t info;
+    mach_msg_type_number_t count = VM_REGION_BASIC_INFO_COUNT_64;
+    mach_port_t object_name = MACH_PORT_NULL;
+    kern_return_t status = mach_vm_region(mach_task_self(), &region, &length,
+        VM_REGION_BASIC_INFO_64, (vm_region_info_t)&info, &count, &object_name);
+    if (object_name != MACH_PORT_NULL) mach_port_deallocate(mach_task_self(), object_name);
+    uintptr_t address = (uintptr_t)(payload + 4);
+    if (status != KERN_SUCCESS || !(info.protection & VM_PROT_WRITE) ||
+        address < region || address - region > length ||
+        length - (address - region) < sizeof(uint32_t)) return NULL;
+    return payload + 4;
+}
+
 static int64_t hook_ServerDispatch(void *server_this, void *reqReader,
                                    void *respWriter, void *a4) {
     fn_ServerDispatch orig = (fn_ServerDispatch)orig_ServerDispatch;
@@ -41,6 +84,22 @@ static int64_t hook_ServerDispatch(void *server_this, void *reqReader,
         return orig(server_this, reqReader, respWriter, a4);
 
     uint32_t hash = peek_method_hash(reqReader);
+    if (hash == METHOD_HASH_UPDATE_TICKET) {
+        uint8_t *argument = managed_ticket_update_argument(reqReader);
+        if (argument) {
+            uint32_t appid;
+            memcpy(&appid, argument, 4);
+            uint32_t source = sx_ticket_source_app();
+            // The extended getter uses this same cached source ticket.
+            // Refresh that same real ticket using Steam's own cache/expiry and
+            // network logic, instead of waiting for a ticket we never consume.
+            memcpy(argument, &source, 4);
+            int64_t result = orig(server_this, reqReader, respWriter, a4);
+            memcpy(argument, &appid, 4);
+            SX_LOG("[ticket] checked native source %u for app %u", source, appid);
+            return result;
+        }
+    }
     if (hash != METHOD_HASH_EXTENDED_DATA)
         return orig(server_this, reqReader, respWriter, a4);
 
@@ -79,6 +138,30 @@ void sx_hooks_ticket_set_source_helpers(uintptr_t buf_ctor,
     g_buf_ensure = (fn_buf_ensure)ensure_capacity;
     g_buf_put    = (fn_buf_put)put_bytes;
     g_store_read = (fn_store_read)store_read;
+}
+
+static int source_is_cached(void *cuser, uint32_t appid) {
+    char name[16];
+    snprintf(name, sizeof(name), "%u", appid);
+    uint8_t data[TICKET_STORE_CAP];
+    uint32_t size = sizeof(data);
+    return g_store_read(cuser, TICKET_STORE_MODE, name, data, &size) &&
+           size >= 48 && size <= sizeof(data);
+}
+
+void sx_hooks_ticket_observe_owned_app(void *cuser, uint32_t appid) {
+    sx_config_t *cfg = sx_config_current;
+    if (!cuser || !appid || !g_store_read || !cfg ||
+        sx_config_has_app(cfg, (int)appid) ||
+        sx_ticket_source_app() != TICKET_SOURCE_APPID) return;
+    // Only original ownership/subscription results reach here, before injection.
+    // Prefer the historical source when present, otherwise use an existing real
+    // owned ticket. No ticket is requested or manufactured by this selection.
+    if (source_is_cached(cuser, TICKET_SOURCE_APPID)) return;
+    if (source_is_cached(cuser, appid)) {
+        sx_ticket_set_source_app(appid);
+        SX_LOG("[ticket] selected existing owned ticket cache for app %u", appid);
+    }
 }
 
 static int64_t hook_FindAppOwnershipTicket(void *cuser, uint32_t appid,

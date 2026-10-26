@@ -39,6 +39,7 @@ static int hook_CheckAppOwnership(void *self, uint32_t appId, void *out) {
             SX_LOG("CheckAppOwnership: captured accountId=%u", acct);
     }
 
+    if (result) sx_hooks_ticket_observe_owned_app(self, appId);
     if (self) g_app_mgr = self;
     sx_reconcile_fire_library_refresh(g_app_mgr);
 
@@ -66,6 +67,11 @@ typedef uint32_t (*fn_GetSubscribedApps)(void *self, uint32_t *appids, uint32_t 
 static uint32_t hook_GetSubscribedApps(void *self, uint32_t *appids, uint32_t max_apps, uint32_t flags) {
     fn_GetSubscribedApps orig = (fn_GetSubscribedApps)orig_GetSubscribedApps;
     uint32_t count = orig(self, appids, max_apps, flags);
+    if (appids) {
+        uint32_t available = count < max_apps ? count : max_apps;
+        for (uint32_t i = 0; i < available; ++i)
+            sx_hooks_ticket_observe_owned_app(self, appids[i]);
+    }
 
     if (self) g_app_mgr = self;
     sx_reconcile_fire_library_refresh(g_app_mgr);

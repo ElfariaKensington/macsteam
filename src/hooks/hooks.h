@@ -44,6 +44,7 @@ sx_hook_def_t *sx_hooks_manifest_defs(void);
 int  sx_hooks_stats_count(void);
 sx_hook_def_t *sx_hooks_stats_defs(void);
 
+void sx_hooks_ticket_observe_owned_app(void *cuser, uint32_t app_id);
 int  sx_hooks_ticket_count(void);
 sx_hook_def_t *sx_hooks_ticket_defs(void);
 void sx_hooks_ticket_set_helpers(uintptr_t put_bytes, uintptr_t put_tag,
