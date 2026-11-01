@@ -1,0 +1,127 @@
+(() => {
+    'use strict';
+    if (location.protocol !== 'https:' || location.hostname !== 'store.steampowered.com' || window.__macsteamHubcap) return;
+    let appID = 0;
+    const pending = new Map();
+    let sequence = 0;
+    let state = 'checking';
+    let busy = false;
+    let root, button, message, actions, originalActions;
+    const bridge = window.macsteamHubcap;
+    if (typeof bridge !== 'function') return;
+    window.__macsteamHubcap = {
+        reply(id, result) {
+            const request = pending.get(id);
+            if (!request) return;
+            pending.delete(id);
+            clearTimeout(request.timer);
+            request.resolve(result);
+        }
+    };
+    function request(action) {
+        return new Promise(resolve => {
+            const id = `${appID}:${++sequence}`;
+            const timer = setTimeout(() => {
+                pending.delete(id);
+                resolve({ error: 'macSteam did not respond. Open macSteam Config and try again.' });
+            }, 90000);
+            pending.set(id, { resolve, timer });
+            bridge(JSON.stringify({ id, appID, action }));
+        });
+    }
+    function render() {
+        if (!button) return;
+        message.hidden = !message.textContent;
+        button.disabled = busy || state === 'checking';
+        button.querySelector('span').textContent = busy ? 'Adding to library…' :
+            state === 'ready' ? 'Install' : state === 'checking' ? 'Checking library…' : 'Add to library';
+        button.setAttribute('aria-busy', String(busy));
+    }
+    async function refresh() {
+        const requestedApp = appID;
+        const result = await request('status');
+        if (requestedApp !== appID) return;
+        if (result.error) {
+            state = 'add';
+            message.textContent = result.error;
+        } else {
+            state = result.ready ? 'ready' : 'add';
+            message.textContent = '';
+        }
+        render();
+    }
+    async function clicked(event) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (busy) return;
+        if (state === 'ready') {
+            // Steam handles its own installation dialog and library location selection.
+            location.href = `steam://install/${appID}`;
+            return;
+        }
+        busy = true;
+        message.textContent = '';
+        render();
+        const requestedApp = appID;
+        const result = await request('add');
+        if (requestedApp !== appID) return;
+        busy = false;
+        if (result.ready) {
+            state = 'ready';
+            message.textContent = '';
+        } else {
+            state = 'add';
+            message.textContent = result.error || 'Steam has not confirmed the library refresh. Try again.';
+        }
+        render();
+    }
+    function mount() {
+        const match = location.pathname.match(/^\/app\/([1-9][0-9]*)(?:\/|$)/);
+        const id = match ? Number(match[1]) : 0;
+        const nextApp = Number.isSafeInteger(id) && id <= 2147483647 ? id : 0;
+        if (nextApp !== appID) {
+            if (actions?.isConnected && originalActions) actions.replaceWith(originalActions);
+            message?.remove();
+            root = null;
+            appID = nextApp;
+            busy = false;
+            state = 'checking';
+        }
+        if (!appID || root?.isConnected) return;
+        const host = document.querySelector('#game_area_purchase, .game_area_purchase');
+        if (!host) return;
+        // Keep Steam's actual purchase card: title, platform icons, description,
+        // region labels and responsive styling all remain Steam's own markup.
+        root = host.querySelector('.game_area_purchase_game:not(.game_area_purchase_game_dropdown_subscription)');
+        originalActions = root?.querySelector('.game_purchase_action');
+        if (!originalActions) { root = null; return; }
+        actions = document.createElement('div');
+        actions.id = 'macsteam-hubcap-purchase';
+        actions.className = originalActions.className;
+        const background = document.createElement('div');
+        background.className = 'game_purchase_action_bg';
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'btn_addtocart';
+        button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn_green_steamui btn_medium';
+        button.style.cssText = 'border:0;cursor:pointer;font:inherit';
+        button.appendChild(document.createElement('span'));
+        button.addEventListener('click', clicked);
+        message = document.createElement('div');
+        message.setAttribute('role', 'status');
+        message.setAttribute('aria-live', 'polite');
+        message.style.cssText = 'font-size:12px;color:#acb2b8;margin-top:8px;max-width:75%';
+        buttonContainer.appendChild(button);
+        background.appendChild(buttonContainer);
+        actions.appendChild(background);
+        originalActions.replaceWith(actions);
+        root.insertBefore(message, actions);
+        render();
+        if (!busy) void refresh();
+    }
+    new MutationObserver(mount).observe(document, { childList: true, subtree: true });
+    window.addEventListener('popstate', mount);
+    window.navigation?.addEventListener('currententrychange', mount);
+    mount();
+})();

@@ -22,5 +22,6 @@ int  sx_reconcile_login_observed(void);
 int  sx_reconcile_fire_library_refresh(void *app_mgr);
 
 void sx_reconcile_arm_after_inject(void);
+void sx_reconcile_enable_live_reload(void);
 
 #endif // MACSTEAM_CORE_RECONCILE_H

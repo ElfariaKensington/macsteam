@@ -23,6 +23,7 @@ mkdir -p "$APP/Contents/Frameworks"
 cp ".build/release/$BIN_NAME" "$APP/Contents/MacOS/$BIN_NAME"
 install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/$BIN_NAME"
 cp "$ICON_SRC" "$APP/Contents/Resources/AppIcon.icns"
+cp -R ".build/release/MacsteamApp_MacsteamApp.bundle" "$APP/Contents/Resources/"
 
 # Built by the top-level Makefile (make rebuild).
 DYLIB_SRC="../out/macsteam.dylib"

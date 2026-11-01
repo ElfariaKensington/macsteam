@@ -8,7 +8,7 @@
 #include "../steam_types.h"
 #include <stdint.h>
 
-static void *g_app_mgr = NULL;
+static _Atomic(void *) g_app_mgr = NULL;
 
 void sx_hooks_apps_force_ready(void) {
     sx_apps_force_ready();
@@ -88,6 +88,7 @@ static int hook_BIsSubscribedApp(void *self, uint32_t appId) {
 
     if (sx_hook_passthrough("BIsSubscribedApp"))
         return result;
+    sx_reconcile_fire_library_refresh(g_app_mgr);
 
     return sx_apps_is_subscribed(appId, result);
 }

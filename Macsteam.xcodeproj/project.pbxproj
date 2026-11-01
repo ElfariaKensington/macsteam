@@ -35,6 +35,13 @@
 		DDDFEB13CFE7D84D5538AE7A /* MacCrab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 278D608A4C94651FCD5CC9D3 /* MacCrab.swift */; };
 		E329E1FDCD5BA91A8A9D9B66 /* LuaManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD4C5C7602D5BB11A2FDECF9 /* LuaManifest.swift */; };
 		E72923A58804C575A1EE3A08 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8D0BD68B24BA51E2A42FDE9 /* main.swift */; };
+		67F22D2ADCB14F0E910B40F9 /* HubcapClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BF793A516E7F0669B0061CF /* HubcapClient.swift */; };
+		E8107059C946142FC139EB76 /* HubcapCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 440DCCA8E08472CC810E895C /* HubcapCredentialStore.swift */; };
+		CB52B136A01DF41CF81C28B3 /* HubcapViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6896F653C16E82E1618570 /* HubcapViewController.swift */; };
+		2007287BFF0184482531532D /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20AC3E66342396D0F89FDA84 /* KeychainStore.swift */; };
+		13CFE54B7C9EE07D897E7A57 /* HubcapStoreBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A982886AF7233D58AC9FD50 /* HubcapStoreBridge.swift */; };
+		21D52B36C60527F77BC8A5B8 /* HubcapStoreInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = C609E3224FF8077347CB463C /* HubcapStoreInstaller.swift */; };
+		94A638DD6AEEDB1F0938FB09 /* hubcap-store.js in Resources */ = {isa = PBXBuildFile; fileRef = A3471EE4310A43585F615088 /* hubcap-store.js */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -145,6 +152,13 @@
 		FB5E1ECB5A1321179A6C2267 /* log.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = log.c; sourceTree = "<group>"; };
 		FB775E8332709FBB761A68AB /* ConfigViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigViewController.swift; sourceTree = "<group>"; };
 		FD2A14FC07A01E3E8371C2AF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		7BF793A516E7F0669B0061CF /* HubcapClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubcapClient.swift; sourceTree = "<group>"; };
+		440DCCA8E08472CC810E895C /* HubcapCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubcapCredentialStore.swift; sourceTree = "<group>"; };
+		5A6896F653C16E82E1618570 /* HubcapViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubcapViewController.swift; sourceTree = "<group>"; };
+		20AC3E66342396D0F89FDA84 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
+		3A982886AF7233D58AC9FD50 /* HubcapStoreBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubcapStoreBridge.swift; sourceTree = "<group>"; };
+		C609E3224FF8077347CB463C /* HubcapStoreInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubcapStoreInstaller.swift; sourceTree = "<group>"; };
+		A3471EE4310A43585F615088 /* hubcap-store.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "Resources/hubcap-store.js"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -347,6 +361,13 @@
 				278D608A4C94651FCD5CC9D3 /* MacCrab.swift */,
 				F725E77B4613A570D32F59FF /* MacsteamConfig.swift */,
 				D8D0BD68B24BA51E2A42FDE9 /* main.swift */,
+				7BF793A516E7F0669B0061CF /* HubcapClient.swift */,
+				440DCCA8E08472CC810E895C /* HubcapCredentialStore.swift */,
+				5A6896F653C16E82E1618570 /* HubcapViewController.swift */,
+				20AC3E66342396D0F89FDA84 /* KeychainStore.swift */,
+				3A982886AF7233D58AC9FD50 /* HubcapStoreBridge.swift */,
+				C609E3224FF8077347CB463C /* HubcapStoreInstaller.swift */,
+				A3471EE4310A43585F615088 /* hubcap-store.js */,
 				4C3B1CF8DCCC7E041C9A699D /* MainViewController.swift */,
 				51154C606410C8B19556C18D /* PackageFetcher.swift */,
 				CF10CE7907305E518E936622 /* PackageServer.swift */,
@@ -496,6 +517,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				94A638DD6AEEDB1F0938FB09 /* hubcap-store.js in Resources */,
 				4938DA2825326DF3B304C5C4 /* (null) in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -548,6 +570,12 @@
 				E329E1FDCD5BA91A8A9D9B66 /* LuaManifest.swift in Sources */,
 				DDDFEB13CFE7D84D5538AE7A /* MacCrab.swift in Sources */,
 				90A4D190A38226018B3C7EC6 /* MacsteamConfig.swift in Sources */,
+				67F22D2ADCB14F0E910B40F9 /* HubcapClient.swift in Sources */,
+				E8107059C946142FC139EB76 /* HubcapCredentialStore.swift in Sources */,
+				CB52B136A01DF41CF81C28B3 /* HubcapViewController.swift in Sources */,
+				2007287BFF0184482531532D /* KeychainStore.swift in Sources */,
+				13CFE54B7C9EE07D897E7A57 /* HubcapStoreBridge.swift in Sources */,
+				21D52B36C60527F77BC8A5B8 /* HubcapStoreInstaller.swift in Sources */,
 				0DE826FCF7922BF50EBFAE0C /* MainViewController.swift in Sources */,
 				4F77223A6B45AB29AD76B586 /* PackageFetcher.swift in Sources */,
 				0DF2544A2A562E04F001C975 /* PackageServer.swift in Sources */,
