@@ -6,7 +6,7 @@
     let sequence = 0;
     let state = 'checking';
     let busy = false;
-    let root, button, message;
+    let root, button, message, actions, originalActions;
     const bridge = window.macsteamHubcap;
     if (typeof bridge !== 'function') return;
     window.__macsteamHubcap = {
@@ -31,6 +31,7 @@
     }
     function render() {
         if (!button) return;
+        message.hidden = !message.textContent;
         button.disabled = busy || state === 'checking';
         button.querySelector('span').textContent = busy ? 'Adding to library…' :
             state === 'ready' ? 'Install' : state === 'checking' ? 'Checking library…' : 'Add to library';
@@ -45,13 +46,13 @@
             message.textContent = result.error;
         } else {
             state = result.ready ? 'ready' : 'add';
-            message.textContent = result.configured && !result.ready ?
-                'Saved in macSteam. Click to activate in Steam.' : '';
+            message.textContent = '';
         }
         render();
     }
     async function clicked(event) {
         event.preventDefault();
+        event.stopImmediatePropagation();
         if (busy) return;
         if (state === 'ready') {
             // Steam handles its own installation dialog and library location selection.
@@ -59,7 +60,7 @@
             return;
         }
         busy = true;
-        message.textContent = 'Downloading Lua and manifests, then refreshing Steam…';
+        message.textContent = '';
         render();
         const requestedApp = appID;
         const result = await request('add');
@@ -67,7 +68,7 @@
         busy = false;
         if (result.ready) {
             state = 'ready';
-            message.textContent = 'Added to your Steam library. Ready to install.';
+            message.textContent = '';
         } else {
             state = 'add';
             message.textContent = result.error || 'Steam has not confirmed the library refresh. Try again.';
@@ -79,7 +80,8 @@
         const id = match ? Number(match[1]) : 0;
         const nextApp = Number.isSafeInteger(id) && id <= 2147483647 ? id : 0;
         if (nextApp !== appID) {
-            root?.remove();
+            if (actions?.isConnected && originalActions) actions.replaceWith(originalActions);
+            message?.remove();
             root = null;
             appID = nextApp;
             busy = false;
@@ -88,15 +90,18 @@
         if (!appID || root?.isConnected) return;
         const host = document.querySelector('#game_area_purchase, .game_area_purchase');
         if (!host) return;
-        root = document.createElement('div');
-        root.id = 'macsteam-hubcap-purchase';
-        root.className = 'game_area_purchase_game';
-        const title = document.createElement('h1');
-        title.textContent = 'macSteam';
-        const actions = document.createElement('div');
-        actions.className = 'game_purchase_action';
+        // Keep Steam's actual purchase card: title, platform icons, description,
+        // region labels and responsive styling all remain Steam's own markup.
+        root = host.querySelector('.game_area_purchase_game:not(.game_area_purchase_game_dropdown_subscription)');
+        originalActions = root?.querySelector('.game_purchase_action');
+        if (!originalActions) { root = null; return; }
+        actions = document.createElement('div');
+        actions.id = 'macsteam-hubcap-purchase';
+        actions.className = originalActions.className;
         const background = document.createElement('div');
         background.className = 'game_purchase_action_bg';
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'btn_addtocart';
         button = document.createElement('button');
         button.type = 'button';
         button.className = 'btn_green_steamui btn_medium';
@@ -107,10 +112,11 @@
         message.setAttribute('role', 'status');
         message.setAttribute('aria-live', 'polite');
         message.style.cssText = 'font-size:12px;color:#acb2b8;margin-top:8px;max-width:75%';
-        background.appendChild(button);
+        buttonContainer.appendChild(button);
+        background.appendChild(buttonContainer);
         actions.appendChild(background);
-        root.append(title, message, actions);
-        host.prepend(root);
+        originalActions.replaceWith(actions);
+        root.insertBefore(message, actions);
         render();
         if (!busy) void refresh();
     }

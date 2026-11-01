@@ -169,6 +169,7 @@ enum SteamLibraryActivation {
         try id.write(to: request, atomically: true, encoding: .utf8)
         CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
             CFNotificationName(rawValue: notification as CFString), nil, nil, true)
+        try await HubcapStoreBridge.querySubscription(appID)
         for _ in 0..<200 {
             try await Task.sleep(for: .milliseconds(50))
             if let value = try? String(contentsOf: ack, encoding: .utf8), value == id,

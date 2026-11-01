@@ -11,10 +11,28 @@ class Element {
     remove() { this.isConnected = false; if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1); }
     setAttribute(key, value) { this[key] = value; }
     addEventListener(name, action) { this.listeners[name] = action; }
-    querySelector(tag) { return this.children.find(c => c.tag === tag) || this.children.map(c => c.querySelector(tag)).find(Boolean); }
+    replaceWith(child) {
+        const at = this.parent.children.indexOf(this);
+        this.parent.children.splice(at, 1, child);
+        child.parent = this.parent; child.isConnected = this.isConnected; this.isConnected = false;
+    }
+    insertBefore(child, next) {
+        this.children.splice(this.children.indexOf(next), 0, child);
+        child.parent = this; child.isConnected = this.isConnected;
+    }
+    querySelector(selector) {
+        const matches = c => selector.startsWith('.') ? c.className?.split(' ').includes(selector.slice(1).split(':')[0]) : c.tag === selector;
+        return this.children.find(matches) || this.children.map(c => c.querySelector(selector)).find(Boolean);
+    }
 }
 function page(url = 'https://store.steampowered.com/app/620/Portal_2/') {
     const host = new Element('purchase');
+    host.isConnected = true;
+    const card = new Element('div'); card.className = 'game_area_purchase_game';
+    const title = new Element('h2'); title.textContent = 'Buy Portal 2';
+    const platforms = new Element('platforms');
+    const original = new Element('div'); original.className = 'game_purchase_action';
+    card.append(title, platforms, original); host.append(card);
     const requests = [];
     let mutation;
     const location = new URL(url);
@@ -23,7 +41,7 @@ function page(url = 'https://store.steampowered.com/app/620/Portal_2/') {
     const context = vm.createContext({ window, document, location, setTimeout, clearTimeout,
         MutationObserver: class { constructor(callback) { mutation = callback; } observe(target) { assert.equal(target, document); } } });
     vm.runInContext(source, context);
-    return { host, requests, window, location, context, mutation: () => mutation?.(),
+    return { host, title, platforms, original, requests, window, location, context, mutation: () => mutation?.(),
         reply: result => { const request = requests.shift(); assert.ok(request); window.__macsteamHubcap.reply(request.id, result); } };
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -35,25 +53,31 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
     await flush();
     let button = p.host.children[0].querySelector('button');
     assert.equal(button.querySelector('span').textContent, 'Add to library');
-    const adding = button.listeners.click({ preventDefault() {} });
+    assert.equal(p.host.children.length, 1, 'reuse Steam card instead of adding a generic banner');
+    assert.equal(p.host.children[0].children[0], p.title, 'original game title retained');
+    assert.equal(p.host.children[0].children[1], p.platforms, 'original platform icons retained');
+    let stopped = false;
+    const adding = button.listeners.click({ preventDefault() {}, stopImmediatePropagation() { stopped = true; } });
+    assert.ok(stopped, 'purchase click must not reach Steam purchase handlers');
     assert.equal(p.requests[0].action, 'add');
     assert.equal(button.disabled, true);
-    await button.listeners.click({ preventDefault() {} });
+    await button.listeners.click({ preventDefault() {}, stopImmediatePropagation() {} });
     assert.equal(p.requests.length, 1, 'double clicks cannot duplicate downloads');
     p.reply({ ready: true });
     await adding;
     assert.equal(button.querySelector('span').textContent, 'Install');
-    await button.listeners.click({ preventDefault() {} });
+    assert.equal(p.location.href, 'https://store.steampowered.com/app/620/Portal_2/', 'adding must keep the current Store document');
+    await button.listeners.click({ preventDefault() {}, stopImmediatePropagation() {} });
     assert.equal(p.location.href, 'steam://install/620');
 
     const failed = page();
     failed.reply({ ready: false }); await flush();
     button = failed.host.children[0].querySelector('button');
-    const operation = button.listeners.click({ preventDefault() {} });
+    const operation = button.listeners.click({ preventDefault() {}, stopImmediatePropagation() {} });
     failed.reply({ error: 'Download failed' }); await operation;
     assert.equal(button.querySelector('span').textContent, 'Add to library');
     assert.equal(button.disabled, false);
-    assert.equal(failed.host.children[0].querySelector('div').textContent, 'Download failed');
+    assert.equal(failed.host.children[0].children.find(c => c.role === 'status').textContent, 'Download failed');
     vm.runInContext(source, failed.context);
     assert.equal(failed.host.children.length, 1, 'reinjection must not duplicate controls');
     failed.location.pathname = '/app/400/Portal/';
@@ -63,7 +87,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
     assert.equal(failed.host.children.at(-1).querySelector('button').querySelector('span').textContent, 'Install');
     const foreign = page('https://example.com/app/620/');
     assert.equal(foreign.requests.length, 0);
-    assert.equal(foreign.host.children.length, 0);
+    assert.equal(foreign.host.children[0].querySelector('.game_purchase_action'), foreign.original);
     const home = page('https://store.steampowered.com/');
     assert.equal(home.requests.length, 0);
     home.location.pathname = '/app/1234567/'; home.mutation();

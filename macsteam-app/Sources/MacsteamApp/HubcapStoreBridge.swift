@@ -25,11 +25,7 @@ final class HubcapStoreBridge {
             try Paths.ensureDir(Paths.configDir)
             try executable.path.write(to: Paths.configDir.appendingPathComponent("hubcap-bridge.path"),
                                       atomically: true, encoding: .utf8)
-            try Paths.ensureDir(Paths.steamRoot)
-            let flag = Paths.steamRoot.appendingPathComponent(".cef-enable-remote-debugging")
-            if !FileManager.default.fileExists(atPath: flag.path) {
-                try Data().write(to: flag, options: .atomic)
-            }
+            try enableCEFDebugging(in: Paths.innerClientMacOS)
             let helper = Process()
             helper.executableURL = executable
             helper.arguments = ["--hubcap-store-bridge"]
@@ -40,6 +36,18 @@ final class HubcapStoreBridge {
             try helper.run()
         } catch {
             NSLog("Hubcap Store integration could not start: %@", error.localizedDescription)
+        }
+    }
+
+    static func enableCEFDebugging(in clientDirectory: URL) throws {
+        // Steam resolves this marker relative to the unbundled client's working
+        // directory, not its Application Support data root.
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: clientDirectory.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else { return }
+        let flag = clientDirectory.appendingPathComponent(".cef-enable-remote-debugging")
+        if !FileManager.default.fileExists(atPath: flag.path) {
+            try Data().write(to: flag, options: .atomic)
         }
     }
 
@@ -91,6 +99,39 @@ final class HubcapStoreBridge {
         let parts = url.path.split(separator: "/")
         guard parts.count >= 2, parts[0] == "app", let id = Int(parts[1]), id > 0, id <= Int32.max else { return nil }
         return id
+    }
+
+    /// Ask Steam through its normal IPC API so activation runs on its pipe-owning
+    /// thread, without navigating or refreshing the Store document.
+    static func querySubscription(_ appID: Int) async throws {
+        guard appID > 0, appID <= Int32.max else { return }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.connectionProxyDictionary = [:]
+        configuration.timeoutIntervalForRequest = 3
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        let (data, _) = try await session.data(from: URL(string: "http://127.0.0.1:8080/json/list")!)
+        let targets = try JSONDecoder().decode([Target].self, from: data)
+        guard let target = targets.first(where: {
+            guard let url = URL(string: $0.url) else { return false }
+            return $0.type == "page" && url.scheme == "https" && url.host == "steamloopback.host"
+                && url.path == "/index.html"
+        }), let endpoint = target.webSocketDebuggerUrl, let url = URL(string: endpoint),
+            url.scheme == "ws", url.host == "127.0.0.1", url.port == 8080,
+            url.path.hasPrefix("/devtools/page/") else { throw URLError(.cannotConnectToHost) }
+        let socket = session.webSocketTask(with: url)
+        socket.resume()
+        let timeout = Task {
+            try? await Task.sleep(for: .seconds(3))
+            if !Task.isCancelled { socket.cancel(with: .goingAway, reason: nil) }
+        }
+        defer { timeout.cancel(); socket.cancel(with: .normalClosure, reason: nil) }
+        let command: [String: Any] = ["id": 1, "method": "Runtime.evaluate", "params": [
+            "expression": "SteamClient.Apps.GetIsSubscribedApp(\(appID))", "awaitPromise": true,
+            "returnByValue": true]]
+        let encoded = try JSONSerialization.data(withJSONObject: command)
+        try await socket.send(.string(String(decoding: encoded, as: UTF8.self)))
+        _ = try await socket.receive()
     }
 
     private struct Target: Decodable {

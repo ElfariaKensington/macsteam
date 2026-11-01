@@ -52,6 +52,21 @@ final class HubcapStoreTests: XCTestCase {
         return HubcapClient(session: URLSession(configuration: configuration))
     }
 
+    func testCEFMarkerIsBesideTheUnbundledClient() throws {
+        let root = try scratch()
+        let client = root.appendingPathComponent("Steam.AppBundle/Steam/Contents/MacOS")
+        try FileManager.default.createDirectory(at: client, withIntermediateDirectories: true)
+        try HubcapStoreBridge.enableCEFDebugging(in: client)
+        let marker = client.appendingPathComponent(".cef-enable-remote-debugging")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: marker.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(marker.lastPathComponent).path))
+        try HubcapStoreBridge.enableCEFDebugging(in: client)
+        XCTAssertEqual(try Data(contentsOf: marker).count, 0)
+        let absent = root.appendingPathComponent("uninstalled-client")
+        try HubcapStoreBridge.enableCEFDebugging(in: absent)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: absent.path))
+    }
+
     func testStoreURLsAreScopedToSteamAppPages() {
         XCTAssertEqual(HubcapStoreBridge.storeAppID("https://store.steampowered.com/app/620/Portal_2/"), 620)
         for value in ["http://store.steampowered.com/app/620/", "https://store.steampowered.com.evil/app/620/",

@@ -29,7 +29,6 @@ void sx_steam_appcache_path(char *out, size_t size, const char *home, const char
 int sx_file_patch_bytes(const char *p, const uint8_t *a, size_t n, const uint8_t *b, size_t m) {
     (void)p; (void)a; (void)n; (void)b; (void)m; return 0;
 }
-void sx_hooks_apps_refresh_library(void) { sx_reconcile_fire_library_refresh(manager); }
 static void clear_map(void *map) { assert(map); cleared++; }
 static int64_t read_disk(void *cache) { assert(cache); reread++; return 1; }
 static void mark_dirty(void *self, uint32_t app, char flag) {
@@ -60,7 +59,10 @@ static int acknowledged(const char *id) {
 }
 static void wait_for_ack(const char *id) {
     for (int i = 0; i < 200 && !acknowledged(id); i++)
-        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.01, true);
+        {
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.01, true);
+            sx_reconcile_fire_library_refresh(manager); // simulate a Steam IPC ownership query
+        }
     assert(acknowledged(id));
 }
 int main(void) {
@@ -106,6 +108,8 @@ int main(void) {
     write_file("hubcap-refresh.request", first);
     CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
         CFSTR("com.macsteam.hubcap.refresh"), NULL, NULL, true);
+    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.05, true);
+    assert(dirty == 0 && emitted == 0 && cleared == 0); // UI queue must never activate
     wait_for_ack(first);
     assert(dirty == 1 && recomputed == 1 && emitted == 1 && cleared == 1 && reread == 1);
     sx_config_t *active = atomic_load(&sx_config_current);

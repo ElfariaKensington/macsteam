@@ -23,7 +23,6 @@ typedef struct {
 int  sx_hooks_apps_count(void);
 sx_hook_def_t *sx_hooks_apps_defs(void);
 void sx_hooks_apps_force_ready(void);
-void sx_hooks_apps_refresh_library(void);
 
 int  sx_hooks_depot_count(void);
 sx_hook_def_t *sx_hooks_depot_defs(void);

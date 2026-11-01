@@ -8,8 +8,6 @@
 #include <mach/mach_vm.h>
 #include <notify.h>
 #include <fcntl.h>
-#include <dispatch/dispatch.h>
-#include "../hooks/hooks.h"
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,7 +38,7 @@ static fn_appmgr_op g_emit_fn      = NULL;
 static const int *g_refresh_app_ids = NULL;
 static int        g_refresh_app_count = 0;
 
-// Main thread only (recompute/emit aren't thread safe, much like C itself).
+// Steam's IPC-owning thread only; recompute/emit are not thread safe.
 static atomic_int g_refresh_armed = 0;
 
 static atomic_int g_login_observed = 0;
@@ -134,32 +132,15 @@ static void write_live_state(void) {
     g_refresh_request[0] = 0;
 }
 
-static int g_reload_fd = -1, g_reload_fd_token = -1;
-static dispatch_source_t g_reload_source;
-
-static void refresh_on_main(void *unused) {
-    (void)unused;
-    uint32_t token;
-    while (read(g_reload_fd, &token, sizeof(token)) > 0) {}
-    sx_hooks_apps_refresh_library();
-}
-
+// Notifications are consumed by ownership hooks on Steam's own IPC thread.
+// dispatch_get_main_queue() is the macOS UI thread, not Steam's pipe owner;
+// running CUserAppManager there trips pipes.cpp's thread assertion.
 void sx_reconcile_enable_live_reload(void) {
     if (notify_register_check("com.macsteam.hubcap.refresh", &g_reload_token) != NOTIFY_STATUS_OK)
         g_reload_token = -1;
-    if (g_reload_token < 0) return;
-    int changed;
-    notify_check(g_reload_token, &changed);
-    // A loader worker has no CFRunLoop. Deliver through a file descriptor to
-    // Steam's main queue instead of installing an observer on that worker.
-    if (notify_register_file_descriptor("com.macsteam.hubcap.refresh", &g_reload_fd,
-                                        0, &g_reload_fd_token) != NOTIFY_STATUS_OK) return;
-    fcntl(g_reload_fd, F_SETFL, fcntl(g_reload_fd, F_GETFL) | O_NONBLOCK);
-    g_reload_source = dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, g_reload_fd,
-                                              0, dispatch_get_main_queue());
-    if (g_reload_source) {
-        dispatch_source_set_event_handler_f(g_reload_source, refresh_on_main);
-        dispatch_resume(g_reload_source);
+    if (g_reload_token >= 0) {
+        int changed;
+        notify_check(g_reload_token, &changed);
     }
 }
 
@@ -355,7 +336,7 @@ void sx_reconcile_arm_library_refresh(void) {
     }
     g_refresh_armed = 1;
     SX_LOG("[reconcile] library refresh armed. Native sub_B19024(x%d)+sub_B1986C+"
-           "sub_B19100 will fire once from the next main-thread "
+           "sub_B19100 will fire once from the next Steam ownership "
            "CheckAppOwnership/GetSubscribedApps", g_refresh_app_count);
 }
 

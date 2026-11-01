@@ -263,7 +263,8 @@ static void start_hubcap_bridge(void) {
     size_t len = fread(executable, 1, sizeof(executable) - 1, file);
     fclose(file);
     if (!len || executable[0] != '/' || access(executable, X_OK) != 0) return;
-    snprintf(path, sizeof(path), "%s/Library/Application Support/Steam/.cef-enable-remote-debugging", home);
+    // steamui checks the marker in the unbundled client working directory.
+    snprintf(path, sizeof(path), "%s/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/.cef-enable-remote-debugging", home);
     int fd = open(path, O_WRONLY | O_CREAT, 0600);
     if (fd >= 0) close(fd);
     extern char **environ;
