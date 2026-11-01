@@ -6,7 +6,7 @@
     let sequence = 0;
     let state = 'checking';
     let busy = false;
-    let root, button, message;
+    let root, button, message, actions, originalActions;
     const bridge = window.macsteamHubcap;
     if (typeof bridge !== 'function') return;
     window.__macsteamHubcap = {
@@ -80,7 +80,8 @@
         const id = match ? Number(match[1]) : 0;
         const nextApp = Number.isSafeInteger(id) && id <= 2147483647 ? id : 0;
         if (nextApp !== appID) {
-            root?.remove();
+            if (actions?.isConnected && originalActions) actions.replaceWith(originalActions);
+            message?.remove();
             root = null;
             appID = nextApp;
             busy = false;
@@ -89,18 +90,14 @@
         if (!appID || root?.isConnected) return;
         const host = document.querySelector('#game_area_purchase, .game_area_purchase');
         if (!host) return;
-        root = document.createElement('div');
-        root.id = 'macsteam-hubcap-purchase';
-        root.className = 'game_area_purchase_game';
-        const title = document.createElement('h2');
-        title.className = 'title';
-        title.textContent = 'Add to library with ';
-        const brand = document.createElement('span');
-        brand.textContent = 'macSteam';
-        brand.style.cssText = 'display:inline-block;margin-left:6px;padding:2px 8px;border:1px solid rgba(198,212,223,.28);border-radius:999px;color:#c6d4df;font-size:.72em;line-height:1.4;vertical-align:2px';
-        title.appendChild(brand);
-        const actions = document.createElement('div');
-        actions.className = 'game_purchase_action';
+        // Keep Steam's actual purchase card: title, platform icons, description,
+        // region labels and responsive styling all remain Steam's own markup.
+        root = host.querySelector('.game_area_purchase_game:not(.game_area_purchase_game_dropdown_subscription)');
+        originalActions = root?.querySelector('.game_purchase_action');
+        if (!originalActions) { root = null; return; }
+        actions = document.createElement('div');
+        actions.id = 'macsteam-hubcap-purchase';
+        actions.className = originalActions.className;
         const background = document.createElement('div');
         background.className = 'game_purchase_action_bg';
         const buttonContainer = document.createElement('div');
@@ -118,8 +115,8 @@
         buttonContainer.appendChild(button);
         background.appendChild(buttonContainer);
         actions.appendChild(background);
-        root.append(title, message, actions);
-        host.prepend(root);
+        originalActions.replaceWith(actions);
+        root.insertBefore(message, actions);
         render();
         if (!busy) void refresh();
     }
