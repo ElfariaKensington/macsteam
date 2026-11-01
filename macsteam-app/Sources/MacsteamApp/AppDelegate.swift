@@ -58,7 +58,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func enforceSingleInstance() -> Bool {
         guard let me = Bundle.main.bundleIdentifier else { return false }
         let others = NSWorkspace.shared.runningApplications.filter {
-            $0.bundleIdentifier == me && $0.processIdentifier != getpid()
+            $0.bundleIdentifier == me && $0.processIdentifier != getpid() &&
+                $0.activationPolicy != .prohibited
         }
         guard let existing = others.first else { return false }
         existing.activate(options: [.activateAllWindows])

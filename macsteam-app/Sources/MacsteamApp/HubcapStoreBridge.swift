@@ -12,6 +12,8 @@ final class HubcapStoreBridge {
 
     init() {
         let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.timeoutIntervalForRequest = 3
         configuration.connectionProxyDictionary = [:]
         session = URLSession(configuration: configuration)
