@@ -6,7 +6,8 @@ var targets: [Target] = [
     .executableTarget(
         name: "MacsteamApp",
         dependencies: ["Sparkle"],
-        path: "Sources/MacsteamApp"
+        path: "Sources/MacsteamApp",
+        resources: [.copy("Resources/hubcap-store.js")]
     )
 ]
 

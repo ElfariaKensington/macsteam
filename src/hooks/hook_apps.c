@@ -8,7 +8,12 @@
 #include "../steam_types.h"
 #include <stdint.h>
 
-static void *g_app_mgr = NULL;
+static _Atomic(void *) g_app_mgr = NULL;
+
+// Called on Steam's main queue when the companion requests live activation.
+void sx_hooks_apps_refresh_library(void) {
+    sx_reconcile_fire_library_refresh(g_app_mgr);
+}
 
 void sx_hooks_apps_force_ready(void) {
     sx_apps_force_ready();

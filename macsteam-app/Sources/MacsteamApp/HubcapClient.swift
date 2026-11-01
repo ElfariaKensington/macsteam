@@ -343,6 +343,22 @@ final class HubcapClient: @unchecked Sendable {
         return text
     }
 
+    func downloadManifestArchive(appID: Int, apiKey: String) async throws -> Data {
+        let request = try makeRequest(
+            url: baseURL.appendingPathComponent("/api/v1/manifest/\(appID)"),
+            apiKey: apiKey, accept: "application/zip"
+        )
+        let (data, response) = try await session.data(for: request)
+        try validate(response)
+        guard data.count >= 4, data.count <= 128 * 1024 * 1024,
+              data.starts(with: [0x50, 0x4b, 0x03, 0x04]) else {
+            throw HubcapClientError.invalidResponse(
+                endpoint: "/api/v1/manifest/\(appID)", preview: "Expected a manifest ZIP archive."
+            )
+        }
+        return data
+    }
+
     private func preview(of text: String) -> String {
         let compact = text
             .replacingOccurrences(of: "\n", with: " ")

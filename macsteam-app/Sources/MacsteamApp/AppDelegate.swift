@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if enforceSingleInstance() { return }
 
         store.load()
+        HubcapStoreBridge.registerExecutable()
         updaterManager.start()
 
         buildMenu()

@@ -7,6 +7,7 @@ final class HubcapViewController: NSViewController {
 
     // Keep all Hubcap API behavior in HubcapClient. This view only orchestrates UI state.
     private let client = HubcapClient()
+    private lazy var storeInstaller = HubcapStoreInstaller(client: client, store: store)
     private var apiStatusIcon: NSImageView!
     private var apiStatusTitle: NSTextField!
     private var apiStatusDetail: NSTextField!
@@ -709,39 +710,15 @@ final class HubcapViewController: NSViewController {
     }
 
     private func install(game: HubcapGame) {
-        guard !isBusy, let appID = game.appID, let key = currentKey() else { return }
-        guard !isInstalled(game) else {
-            refreshInstalledState()
-            return
-        }
-
-        setBusy(true, status: "Downloading Lua for \(game.name)…")
-
+        guard !isBusy, let appID = game.appID, currentKey() != nil else { return }
+        setBusy(true, status: "Adding \(game.name) to Steam…")
         Task {
             do {
-                let luaText = try await client.downloadLuaText(appID: appID, apiKey: key)
-
-                setStatus("Installing \(game.name)…", tone: .neutral)
-                let plan = try await Task.detached(priority: .userInitiated) {
-                    try ZipImporter.buildPlan(
-                        fromLuaText: luaText,
-                        source: URL(fileURLWithPath: "hubcap-\(appID).lua")
-                    )
-                }.value
-
-                guard plan.mainAppID == appID else {
-                    throw HubcapInstallError.appIDMismatch(requested: appID)
-                }
-
-                try store.mutate { cfg in
-                    _ = ZipImporter.merge(plan, into: &cfg)
-                }
-
-                ZipImporter.cleanup(plan.extractDir)
+                try await storeInstaller.install(appID: appID)
                 refreshInstalledState()
                 onConfigChanged()
                 setBusy(false)
-                setStatus("Installed \(game.name) into macSteam.", tone: .ok)
+                setStatus("Added \(game.name) to the Steam library. Ready to install.", tone: .ok)
             } catch {
                 setBusy(false)
                 setStatus(error.localizedDescription, tone: .bad)

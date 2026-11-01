@@ -19,6 +19,8 @@
 #include <dirent.h>
 #include <mach-o/dyld.h>
 #include <libgen.h>
+#include <spawn.h>
+#include <fcntl.h>
 
 #define STEAMCLIENT_DYLIB   "steamclient.dylib"
 #define WAIT_TIMEOUT_MS     60000   // 60s, bootstrapper may take a while
@@ -145,7 +147,7 @@ static int steamclient_already_loaded(void) {
     return 0;
 }
 
-static void arm_late_injection_reconcile(const sx_resolve_result_t *resolved,
+static void setup_library_refresh(const sx_resolve_result_t *resolved,
                                          const sx_config_t *cfg) {
     sx_reconcile_set_addrs(
         sx_resolve_find(resolved, "CSteamEngine::SwitchAppPackageCache__anchor_for_engine_global_ref__inferred"),
@@ -161,7 +163,7 @@ static void arm_late_injection_reconcile(const sx_resolve_result_t *resolved,
 
     sx_reconcile_arm_library_refresh();
 
-    sx_reconcile_arm_after_inject();
+    sx_reconcile_enable_live_reload();
 }
 
 static void *loader_worker(void *unused) {
@@ -239,13 +241,47 @@ static void *loader_worker(void *unused) {
     // On late injection GetSubscribedApps already occured
     sx_hooks_apps_force_ready();
 
+    setup_library_refresh(&resolved, &cfg);
     if (late_injection)
-        arm_late_injection_reconcile(&resolved, &cfg);
+        sx_reconcile_arm_after_inject();
 
     sx_resolve_result_free(&resolved);
     sx_sigdb_free(&sigdb);
 
     return NULL;
+}
+
+// The config app registers its actual executable location, so relocated installs
+// work too. Run its bridge without an application window or injected environment.
+static void start_hubcap_bridge(void) {
+    const char *home = sx_resolve_home();
+    if (!home) return;
+    char path[1024], executable[4096] = {0};
+    sx_macsteam_support_path(path, sizeof(path), home, "hubcap-bridge.path");
+    FILE *file = fopen(path, "r");
+    if (!file) return;
+    size_t len = fread(executable, 1, sizeof(executable) - 1, file);
+    fclose(file);
+    if (!len || executable[0] != '/' || access(executable, X_OK) != 0) return;
+    snprintf(path, sizeof(path), "%s/Library/Application Support/Steam/.cef-enable-remote-debugging", home);
+    int fd = open(path, O_WRONLY | O_CREAT, 0600);
+    if (fd >= 0) close(fd);
+    extern char **environ;
+    size_t count = 0;
+    while (environ[count]) count++;
+    char **env = calloc(count + 1, sizeof(char *));
+    if (!env) return;
+    size_t n = 0;
+    for (size_t i = 0; i < count; i++) {
+        if (strncmp(environ[i], "DYLD_INSERT_LIBRARIES=", sizeof("DYLD_INSERT_LIBRARIES=") - 1) == 0 ||
+            strncmp(environ[i], "STEAM_APP_BUNDLE_PATH=", sizeof("STEAM_APP_BUNDLE_PATH=") - 1) == 0) continue;
+        env[n++] = environ[i];
+    }
+    char *args[] = {executable, "--hubcap-store-bridge", NULL};
+    pid_t pid;
+    int rc = posix_spawn(&pid, executable, NULL, NULL, args, env);
+    free(env);
+    if (rc != 0) SX_WARN("[hubcap] could not start Store bridge: %s", strerror(rc));
 }
 
 __attribute__((constructor))
@@ -262,6 +298,7 @@ static void sx_init(void) {
         }
     }
 
+    start_hubcap_bridge();
     remove_crash_sentinel();
     sx_whatsnew_patch_installed_css();
 

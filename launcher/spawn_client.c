@@ -370,7 +370,12 @@ int main(int argc, char **argv) {
 
     // argv[0] basename has to be "steam_osx" so sx_init's getprogname() gate matches
     // and the dylib activates.
-    char *child_argv[] = { (char *)SPAWN_EXE, NULL };
+    // CEF debugging is loopback-only; the native companion uses it to augment
+    // Store pages. Enable it only after macSteam Config registers the companion.
+    char bridge_path[PATH_MAX];
+    snprintf(bridge_path, sizeof bridge_path, "%s/hubcap-bridge.path", state_dir);
+    char *child_argv[] = { (char *)SPAWN_EXE,
+        access(bridge_path, R_OK) == 0 ? "-cef-enable-debugging" : NULL, NULL };
 
     // posix_spawn (not execv): spawned steam_osx daemonizes (ppid=1) into the
     // long-lived client. execv with this env made it dlclose+exit without login.
