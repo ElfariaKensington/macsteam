@@ -69,8 +69,10 @@
         status.setAttribute('role', 'status');
         status.setAttribute('aria-live', 'polite');
         status.style.cssText = 'font-size:12px;color:#acb2b8;margin:6px 0';
-        status.textContent = statusText || '';
-        status.hidden = !statusText;
+        const needsGame = !result.gameInstalled && result.fixes.some(f => f.hasFix);
+        status.textContent = statusText ||
+            (needsGame ? 'Game not installed: "Install fix" needs it in your Steam library folder. Manifests can be installed now.' : '');
+        status.hidden = !status.textContent;
         fixesRoot.appendChild(status);
         for (const fix of result.fixes) {
             const row = document.createElement('div');
@@ -109,12 +111,7 @@
                 actions.appendChild(actionButton('Install manifest', () => run('fix-manifest')));
             }
             if (fix.hasFix && !fix.applied) {
-                const b = actionButton('Install fix', () => run('fix-install'));
-                if (!result.gameInstalled) {
-                    b.disabled = true;
-                    b.title = 'Install the game with Steam first.';
-                }
-                actions.appendChild(b);
+                actions.appendChild(actionButton('Install fix', () => run('fix-install')));
             }
             if (fix.applied) {
                 actions.appendChild(actionButton('Undo fix', () => run('fix-undo')));
