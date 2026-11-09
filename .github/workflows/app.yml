@@ -1,5 +1,6 @@
 name: Build
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
@@ -19,3 +20,16 @@ jobs:
       - name: Build config app
         working-directory: macsteam-app
         run: ./make_app.sh
+
+      - name: Package app
+        run: |
+          ditto -c -k --keepParent "macsteam-app/macSteam Config.app" macSteam-Config.zip
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macSteam-Config-${{ github.sha }}
+          path: |
+            macSteam-Config.zip
+            out/macsteam.dylib
+          if-no-files-found: error
