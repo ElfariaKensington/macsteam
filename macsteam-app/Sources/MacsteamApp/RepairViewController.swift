@@ -11,6 +11,7 @@ final class RepairViewController: NSViewController {
 
     private var repairButton: NSButton!
     private var openButton: NSButton!
+    private var closeButton: NSButton!
     private var spinner: NSProgressIndicator!
 
     override func loadView() {
@@ -47,6 +48,7 @@ final class RepairViewController: NSViewController {
         repairButton = makeButton(title: "Repair", target: self, action: #selector(doRepair))
         repairButton.keyEquivalent = "\r"
         openButton = makeButton(title: "Open Steam", target: self, action: #selector(openSteam))
+        closeButton = makeButton(title: "Close", target: self, action: #selector(close))
 
         spinner = NSProgressIndicator()
         spinner.translatesAutoresizingMaskIntoConstraints = false
@@ -69,6 +71,7 @@ final class RepairViewController: NSViewController {
         root.addSubview(statusGroup)
         root.addSubview(footerDivider)
         root.addSubview(openButton)
+        root.addSubview(closeButton)
         root.addSubview(repairButton)
         root.addSubview(spinner)
 
@@ -93,6 +96,9 @@ final class RepairViewController: NSViewController {
 
             openButton.trailingAnchor.constraint(equalTo: repairButton.leadingAnchor, constant: -10),
             openButton.centerYAnchor.constraint(equalTo: repairButton.centerYAnchor),
+
+            closeButton.trailingAnchor.constraint(equalTo: openButton.leadingAnchor, constant: -10),
+            closeButton.centerYAnchor.constraint(equalTo: repairButton.centerYAnchor),
 
             spinner.centerYAnchor.constraint(equalTo: repairButton.centerYAnchor),
             spinner.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: M),
@@ -166,6 +172,14 @@ final class RepairViewController: NSViewController {
         NSWorkspace.shared.open(Paths.steamApp)
     }
 
+    @objc private func close() {
+        dismiss(self)
+    }
+
+    override func cancelOperation(_ sender: Any?) {
+        dismiss(self)
+    }
+
     private func runRepair() {
         setBusy(true)
         spinner.startAnimation(nil)
@@ -222,5 +236,6 @@ final class RepairViewController: NSViewController {
     private func setBusy(_ busy: Bool) {
         repairButton.isEnabled = !busy
         openButton.isEnabled = !busy
+        closeButton.isEnabled = !busy
     }
 }

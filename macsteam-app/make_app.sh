@@ -24,6 +24,14 @@ cp ".build/release/$BIN_NAME" "$APP/Contents/MacOS/$BIN_NAME"
 install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/$BIN_NAME"
 cp "$ICON_SRC" "$APP/Contents/Resources/AppIcon.icns"
 
+RES_BUNDLE=".build/release/${BIN_NAME}_${BIN_NAME}.bundle"
+if [ -d "$RES_BUNDLE" ]; then
+    rm -rf "$APP/Contents/Resources/$(basename "$RES_BUNDLE")"
+    cp -R "$RES_BUNDLE" "$APP/Contents/Resources/"
+else
+    echo "warning: $RES_BUNDLE missing -- store button script not bundled" >&2
+fi
+
 # Built by the top-level Makefile (make rebuild).
 DYLIB_SRC="../out/macsteam.dylib"
 MS_VERSION=$(sed -n 's/.*MACSTEAM_VERSION[[:space:]]*"\(.*\)".*/\1/p' ../src/version.h)
@@ -52,14 +60,19 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleExecutable</key>      <string>$BIN_NAME</string>
     <key>CFBundleIconFile</key>        <string>AppIcon</string>
     <key>CFBundlePackageType</key>     <string>APPL</string>
-    <key>CFBundleShortVersionString</key> <string>0.8.2</string>
-    <key>CFBundleVersion</key>         <string>13</string>
+    <key>CFBundleShortVersionString</key> <string>0.9.0</string>
+    <key>CFBundleVersion</key>         <string>14</string>
     <key>LSMinimumSystemVersion</key>  <string>13.0</string>
     <key>LSApplicationCategoryType</key> <string>public.app-category.utilities</string>
     <key>NSHumanReadableCopyright</key> <string>© 2026 Selectively11</string>
     <key>NSHighResolutionCapable</key> <true/>
+    <!-- LuaTools' public source checker is HTTP-only. -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key> <true/>
+    </dict>
     <key>NSPrincipalClass</key>        <string>NSApplication</string>
-    <key>SUFeedURL</key>               <string>https://raw.githubusercontent.com/crghofficial/macsteam/main/appcast.xml</string>
+    <key>SUFeedURL</key>               <string>https://raw.githubusercontent.com/ElfariaKensington/macsteam/main/appcast.xml</string>
     <key>SUPublicEDKey</key>           <string>rDOXzJ+vt12aWeu9hATgvz6q46MlRcgR4gbTfj5YuWQ=</string>
 </dict>
 </plist>
@@ -70,6 +83,16 @@ if [ -d "$SPARKLE_FW" ]; then
     cp -R "$SPARKLE_FW" "$APP/Contents/Frameworks/Sparkle.framework"
 else
     echo "warning: Sparkle.framework not found -- auto-update disabled at runtime" >&2
+fi
+
+# NotProton compatibility: bundle the launcher so the Install pane can deploy it.
+LAUNCHER_APP="$APP/Contents/Resources/macSteamLauncher.app"
+if make -C ../launcher app >/dev/null 2>&1; then
+    rm -rf "$LAUNCHER_APP"
+    cp -R ../launcher/build/macSteam.app "$LAUNCHER_APP"
+    codesign -f -s - "$LAUNCHER_APP" >/dev/null 2>&1 || true
+else
+    echo "warning: launcher build failed -- NotProton compatibility unavailable" >&2
 fi
 
 echo "APPL????" > "$APP/Contents/PkgInfo"

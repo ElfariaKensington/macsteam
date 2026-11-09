@@ -7,9 +7,11 @@ final class MainViewController: NSSplitViewController {
     private var sidebarVC: SidebarViewController!
     private var detailContainerVC: NSViewController!
     private var importVC: ImportViewController!
+    private var gamesVC: GamesViewController!
+    private var fixesVC: FixesViewController!
+    private var cloudSavesVC: CloudSavesViewController!
     private var configVC: ConfigViewController!
     private var installVC: InstallViewController!
-    private var repairVC: RepairViewController!
 
     private let titleLabel: NSTextField = {
         let field = NSTextField(labelWithString: "")
@@ -21,8 +23,10 @@ final class MainViewController: NSSplitViewController {
 
     enum Item: Equatable {
         case install
-        case repair
         case importZip
+        case store
+        case fixes
+        case cloudSaves
         case config(ConfigViewController.Section)
     }
 
@@ -38,15 +42,25 @@ final class MainViewController: NSSplitViewController {
         importVC = ImportViewController(store: store, onConfigChanged: { [weak self] in
             self?.configVC.reloadFromStore()
         })
+        gamesVC = GamesViewController(store: store, onConfigChanged: { [weak self] in
+            self?.configVC.reloadFromStore()
+            self?.gamesVC.reloadFromStore()
+        })
+        fixesVC = FixesViewController(store: store, onConfigChanged: { [weak self] in
+            self?.configVC.reloadFromStore()
+            self?.fixesVC.refreshAfterInstall()
+        })
+        cloudSavesVC = CloudSavesViewController(store: store)
         configVC = ConfigViewController(store: store)
         installVC = InstallViewController()
-        repairVC = RepairViewController()
 
         detailContainerVC = NSViewController()
         detailContainerVC.view = NSView()
         detailContainerVC.addChild(installVC)
-        detailContainerVC.addChild(repairVC)
         detailContainerVC.addChild(importVC)
+        detailContainerVC.addChild(gamesVC)
+        detailContainerVC.addChild(fixesVC)
+        detailContainerVC.addChild(cloudSavesVC)
         detailContainerVC.addChild(configVC)
 
         sidebarVC = SidebarViewController(onSelect: { [weak self] item in
@@ -83,12 +97,18 @@ final class MainViewController: NSSplitViewController {
         case .install:
             child = installVC
             title = "Install"
-        case .repair:
-            child = repairVC
-            title = "Repair Steam"
         case .importZip:
             child = importVC
             title = "Import Apps"
+        case .store:
+            child = gamesVC
+            title = "Store"
+        case .fixes:
+            child = fixesVC
+            title = "Fixes"
+        case .cloudSaves:
+            child = cloudSavesVC
+            title = "Cloud Saves"
         case .config(let section):
             configVC.select(section: section)
             child = configVC
@@ -117,6 +137,12 @@ final class MainViewController: NSSplitViewController {
     @objc func importZip() {
         sidebarVC.select(.importZip)
         importVC.pickZip()
+    }
+
+    func reloadAfterExternalConfigChange() {
+        guard isViewLoaded else { return }
+        configVC.reloadFromStore()
+        gamesVC.reloadFromStore()
     }
 }
 

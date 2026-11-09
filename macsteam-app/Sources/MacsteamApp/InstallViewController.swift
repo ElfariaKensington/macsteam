@@ -8,8 +8,8 @@ final class InstallViewController: NSViewController {
     private var detailLabel: NSTextField!
     private var installButton: NSButton!
     private var uninstallButton: NSButton!
-    private var updateBlockButton: NSButton!
     private var openButton: NSButton!
+    private var repairButton: NSButton!
     private var spinner: NSProgressIndicator!
 
     private var bundledDylib: URL? {
@@ -42,8 +42,9 @@ final class InstallViewController: NSViewController {
         installButton = makeButton(title: "Install", target: self, action: #selector(doInstall))
         installButton.keyEquivalent = "\r"
         uninstallButton = makeButton(title: "Uninstall", target: self, action: #selector(doUninstall))
-        updateBlockButton = makeButton(title: "Allow Updates", target: self, action: #selector(toggleUpdateBlock))
         openButton = makeButton(title: "Open Steam", target: self, action: #selector(openSteam))
+        repairButton = makeButton(title: "Repair Steam…", target: self,
+                                  action: #selector(repairSteam))
 
         spinner = NSProgressIndicator()
         spinner.translatesAutoresizingMaskIntoConstraints = false
@@ -65,7 +66,7 @@ final class InstallViewController: NSViewController {
         root.addSubview(statusGroup)
         root.addSubview(footerDivider)
         root.addSubview(openButton)
-        root.addSubview(updateBlockButton)
+        root.addSubview(repairButton)
         root.addSubview(uninstallButton)
         root.addSubview(installButton)
         root.addSubview(spinner)
@@ -91,11 +92,11 @@ final class InstallViewController: NSViewController {
             uninstallButton.trailingAnchor.constraint(equalTo: installButton.leadingAnchor, constant: -10),
             uninstallButton.centerYAnchor.constraint(equalTo: installButton.centerYAnchor),
 
-            updateBlockButton.trailingAnchor.constraint(equalTo: uninstallButton.leadingAnchor, constant: -10),
-            updateBlockButton.centerYAnchor.constraint(equalTo: installButton.centerYAnchor),
-
-            openButton.trailingAnchor.constraint(equalTo: updateBlockButton.leadingAnchor, constant: -10),
+            openButton.trailingAnchor.constraint(equalTo: uninstallButton.leadingAnchor, constant: -10),
             openButton.centerYAnchor.constraint(equalTo: installButton.centerYAnchor),
+
+            repairButton.trailingAnchor.constraint(equalTo: openButton.leadingAnchor, constant: -10),
+            repairButton.centerYAnchor.constraint(equalTo: installButton.centerYAnchor),
 
             spinner.centerYAnchor.constraint(equalTo: installButton.centerYAnchor),
             spinner.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: M),
@@ -124,10 +125,11 @@ final class InstallViewController: NSViewController {
         detailLabel.stringValue = summary.detail
 
         switch status {
-        case .installed:
+        case .installed, .installedLauncher, .installedDirect:
             installButton.title = "Reinstall"
             uninstallButton.isEnabled = true
             openButton.isEnabled = true
+            openButton.title = status == .installedLauncher ? "Open macSteam" : "Open Steam"
         case .outdated:
             installButton.title = "Update"
             uninstallButton.isEnabled = true
@@ -146,11 +148,7 @@ final class InstallViewController: NSViewController {
             openButton.isEnabled = false
         }
 
-        updateBlockButton.title = blockOn ? "Allow Updates" : "Block Updates"
-        switch status {
-        case .installed, .outdated: updateBlockButton.isEnabled = true
-        default: updateBlockButton.isEnabled = false
-        }
+        repairButton.isEnabled = status != .steamMissing
 
         installButton.isEnabled = hasPayload && status != .steamMissing
     }
@@ -168,9 +166,16 @@ final class InstallViewController: NSViewController {
                            detail: "Steam isn't in your Applications folder. Install it from Valve, then come back.")
         case .installed:
             return blockOn
-                ? Summary(tone: .ok, headline: "Installed", detail: "")
+                ? Summary(tone: .ok, headline: "Installed",
+                          detail: "Steam updates are blocked. Change this in Settings → Updates.")
                 : Summary(tone: .warn, headline: "Installed, updates allowed",
-                          detail: "Steam can update its client. A future update will break macSteam until macSteam is updated to match.")
+                          detail: "Steam can update its client and may break macSteam until macSteam catches up. Change this in Settings → Updates.")
+        case .installedLauncher:
+            return Summary(tone: .ok, headline: "Installed (launcher)",
+                           detail: "NotProton detected. Launch macSteam.app to start Steam with both dylibs loaded.")
+        case .installedDirect:
+            return Summary(tone: .ok, headline: "Installed (direct)",
+                           detail: "NotProton and macSteam both load when you open Steam.app normally.")
         case .outdated(let bundled, let deployed):
             return Summary(tone: .warn, headline: "Update available",
                            detail: "A newer dylib is bundled (v\(bundled)). The installed version is v\(deployed). Click Update to apply it.")
@@ -229,6 +234,28 @@ final class InstallViewController: NSViewController {
 
     private func runInstall(dylib: URL, pinFirst: Bool) {
         runBusy(verb: "Installing") {
+            let useNotProton = NotProtonMode.isEnabled()
+
+            if SteamInstaller.notProtonPresent {
+                if useNotProton {
+                    try SteamInstaller.installDirectCompatibility(sourceDylib: dylib)
+                } else {
+                    try SteamInstaller.installNotProtonCompatibility(sourceDylib: dylib)
+                }
+                return
+            }
+
+            // NotProton is gone: remove any compatibility leftovers and install normally.
+            SteamInstaller.removeLauncherCompatibility()
+            if SteamInstaller.directModeInstalled {
+                SteamInstaller.removeDirectCompatibility()
+            }
+
+            if SteamInstaller.hasForeignInsert() {
+                // Keep another injector's list intact by using the direct path.
+                try SteamInstaller.installDirectCompatibility(sourceDylib: dylib)
+                return
+            }
             switch SteamInstaller.status() {
             case .installed, .outdated:
                 try SteamInstaller.install(sourceDylib: dylib)
@@ -241,6 +268,29 @@ final class InstallViewController: NSViewController {
     }
 
     @objc private func doUninstall() {
+        if SteamInstaller.directModeInstalled {
+            let alert = NSAlert()
+            alert.messageText = "Remove macSteam from Steam's direct launch?"
+            alert.informativeText = "macSteam will stop injecting when you open Steam.app. "
+                + "NotProton stays installed and keeps working normally."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Remove")
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            runBusy(verb: "Removing") { SteamInstaller.removeDirectCompatibility() }
+            return
+        }
+        if SteamInstaller.launcherInstalled {
+            let alert = NSAlert()
+            alert.messageText = "Remove the macSteam launcher?"
+            alert.informativeText = "Steam itself will not be modified. NotProton stays installed."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Remove")
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            runBusy(verb: "Removing") { SteamInstaller.removeLauncherCompatibility() }
+            return
+        }
         let alert = NSAlert()
         alert.messageText = "Uninstall macSteam from Steam?"
         alert.informativeText = "This downloads a clean, Valve-signed Steam and replaces the "
@@ -252,25 +302,12 @@ final class InstallViewController: NSViewController {
         runBusy(verb: "Uninstalling") { try MacCrab.uninstallToStock() }
     }
 
-    @objc private func toggleUpdateBlock() {
-        guard SteamInstaller.updateBlockEnabled() else {
-            runBusy { try SteamInstaller.enableUpdateBlock() }
-            return
-        }
-        let alert = NSAlert()
-        alert.messageText = "Allow Steam to update?"
-        alert.informativeText = "macSteam blocks the Steam client from updating the client "
-            + "itself. If you disable this behavior, a future Steam update will break macSteam "
-            + "until macSteam is updated to match. You have been warned."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Continue")
-        alert.addButton(withTitle: "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        runBusy { try SteamInstaller.disableUpdateBlock() }
+    @objc private func repairSteam() {
+        presentAsSheet(RepairViewController())
     }
 
     @objc private func openSteam() {
-        NSWorkspace.shared.open(Paths.steamApp)
+        NSWorkspace.shared.open(SteamInstaller.launcherInstalled ? Paths.launcherApp : Paths.steamApp)
     }
 
     private func runBusy(verb: String = "Working", _ work: @escaping @Sendable () throws -> Void) {
@@ -283,8 +320,8 @@ final class InstallViewController: NSViewController {
         MacsteamApp.runBusy(spinner: spinner, setBusy: { [self] busy in
             installButton.isEnabled = !busy && bundledDylib != nil
             uninstallButton.isEnabled = !busy
-            updateBlockButton.isEnabled = !busy
             openButton.isEnabled = !busy
+            repairButton.isEnabled = !busy
         }, refresh: { [self] in refresh() }, work: work)
     }
 }

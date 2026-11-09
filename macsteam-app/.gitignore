@@ -3,7 +3,6 @@
 *.app/
 *.bak
 .DS_Store
-Tests/
 *.xcworkspace/
 xcuserdata/
 **/xcuserdata/

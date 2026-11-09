@@ -8,33 +8,51 @@
 
 /* Begin PBXBuildFile section */
 		071881A12021FB821F1BC8C4 /* SteamStoreClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22A1DE83F5FBF0A4004D88D /* SteamStoreClient.swift */; };
+		07C6BFBB445334E67D2AF7FA /* HubcapManifestArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18914F50BC6E4A34F3D11AC3 /* HubcapManifestArchive.swift */; };
 		0ADB1C9603F44951D9F03C48 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA713A95B53A14A4E5B8077A /* DesignSystem.swift */; };
 		0B2BC150C8706A443968C56D /* StepFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CD6F01B3FC167D2E4913CBA /* StepFailure.swift */; };
 		0DE826FCF7922BF50EBFAE0C /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C3B1CF8DCCC7E041C9A699D /* MainViewController.swift */; };
 		0DF2544A2A562E04F001C975 /* PackageServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF10CE7907305E518E936622 /* PackageServer.swift */; };
 		11F50264AF1768A2596E5D58 /* GameReviewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBFF5425A91A8227C1E5C649 /* GameReviewCell.swift */; };
+		13CFE54B7C9EE07D897E7A57 /* HubcapStoreBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A982886AF7233D58AC9FD50 /* HubcapStoreBridge.swift */; };
 		1594B0225BA15CD36DD86019 /* ZipImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 662D8C8E389091E1FEBC0285 /* ZipImporter.swift */; };
 		16D29F8D4E92296162760498 /* UpdaterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B35049B5E0AC70E90976A8E /* UpdaterManager.swift */; };
 		1ED97326E624D8DF11E97EA8 /* SteamBundleInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC29ED53A77D88C3772FE750 /* SteamBundleInstaller.swift */; };
+		21D52B36C60527F77BC8A5B8 /* HubcapStoreInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = C609E3224FF8077347CB463C /* HubcapStoreInstaller.swift */; };
 		278FDA572C9F5AAC5B46DB17 /* AppCardListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 189DFCF8994448D9223DF875 /* AppCardListView.swift */; };
+		3282943AFDE6B9236576F28B /* LuaToolsManifestInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70340A667FEE076CD19A0E1 /* LuaToolsManifestInstaller.swift */; };
+		37CDF1A76AB1DC1D50845DF2 /* LuaToolsGamesClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4249DE95575E3B90C813DC75 /* LuaToolsGamesClient.swift */; };
 		39477E154A03C89EF9EA5042 /* Paths.swift in Sources */ = {isa = PBXBuildFile; fileRef = F69E282893128DA01594B4FF /* Paths.swift */; };
 		4938DA2825326DF3B304C5C4 /* (null) in Resources */ = {isa = PBXBuildFile; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		4F77223A6B45AB29AD76B586 /* PackageFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51154C606410C8B19556C18D /* PackageFetcher.swift */; };
+		561AE93C59C295883E155AF7 /* AppLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91BB82759F978B04E60C065E /* AppLog.swift */; };
 		5DC5B2939C7FB74A8655B606 /* Subprocess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17110BF276D8FFBDC908BC32 /* Subprocess.swift */; };
+		5E18919E614C1BD45DED0555 /* GamesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0C25C90339D24B1D23E352 /* GamesViewController.swift */; };
+		67F22D2ADCB14F0E910B40F9 /* HubcapClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BF793A516E7F0669B0061CF /* HubcapClient.swift */; };
+		6DD2000FD792D60FF6DE37E4 /* FixesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209957FFB6BF6CC3D3CF78E3 /* FixesViewController.swift */; };
+		7E1A88D3447BD89D31CFFBE6 /* GoogleDriveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4EC29D9473647C58016346B /* GoogleDriveService.swift */; };
+		8864708BB5A30DFC0FC19AE1 /* CloudSavesRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E7C030A47777CB53250F95 /* CloudSavesRunner.swift */; };
 		90A4D190A38226018B3C7EC6 /* MacsteamConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F725E77B4613A570D32F59FF /* MacsteamConfig.swift */; };
+		920110D4E34701E06CB0A49E /* CloudSavesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF56542D94EAB60BEC800282 /* CloudSavesViewController.swift */; };
+		949B326A06E85678568900DF /* LuaToolsFixesClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13830C028B7FC0640642A5F2 /* LuaToolsFixesClient.swift */; };
+		94A638DD6AEEDB1F0938FB09 /* hubcap-store.js in Resources */ = {isa = PBXBuildFile; fileRef = A3471EE4310A43585F615088 /* hubcap-store.js */; };
 		95CB2D4FD35820C8E0BDEAF1 /* ConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 903CE5FAC2DFF34ABE9C992A /* ConfigStore.swift */; };
 		9B3724786DA3F6A0A5680A1D /* SteamInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D7294804272AFFDEF86E5EF /* SteamInstaller.swift */; };
 		9CE8261F20C2725124C794A6 /* RepairViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED9C4BCECFB3EEEE8981243C /* RepairViewController.swift */; };
+		B41FBF0B3B248CCF31810C11 /* CEFWebSocket.swift in Sources */ = {isa = PBXBuildFile; fileRef = 410580B3D77A227B9F003926 /* CEFWebSocket.swift */; };
 		B4DD3956CFABEFD36653E4B4 /* ConfigViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB775E8332709FBB761A68AB /* ConfigViewController.swift */; };
+		B7EA2C7788A5898F38D2B977 /* CloudSavesEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAEE915311EAA840782E4C1 /* CloudSavesEngine.swift */; };
 		BAB300C772084F35C44A0525 /* ImportViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1035A226D59181C9B97FB634 /* ImportViewController.swift */; };
 		BEC5A3D01AC72E63330D7BA4 /* ImportDropViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A8858DD3858C37AD23F2A9 /* ImportDropViews.swift */; };
 		C6A06F1BBC9BE4EAF106ECB3 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 41172064FBD70D28840A9DE0 /* Sparkle */; };
 		C6C8555768D5266BC25C3C6A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AF53423D1C5852034F7E2BD /* AppDelegate.swift */; };
+		CB52B136A01DF41CF81C28B3 /* HubcapViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6896F653C16E82E1618570 /* HubcapViewController.swift */; };
 		CB9548875259704AEBC19330 /* InstallViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA329D034FBD1F6A47EF2FB0 /* InstallViewController.swift */; };
 		D3ACBC8F91B77713DFE52F88 /* SidebarViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752BE70E2EB8396C53E8B095 /* SidebarViewController.swift */; };
 		DDDFEB13CFE7D84D5538AE7A /* MacCrab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 278D608A4C94651FCD5CC9D3 /* MacCrab.swift */; };
 		E329E1FDCD5BA91A8A9D9B66 /* LuaManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD4C5C7602D5BB11A2FDECF9 /* LuaManifest.swift */; };
 		E72923A58804C575A1EE3A08 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8D0BD68B24BA51E2A42FDE9 /* main.swift */; };
+		F826C432149F66A5474D5D12 /* LuaToolsAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB032AE615C6C29ABDB7E436 /* LuaToolsAuth.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -55,14 +73,14 @@
 		0B35049B5E0AC70E90976A8E /* UpdaterManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterManager.swift; sourceTree = "<group>"; };
 		0EFE126F003AF49D8F282503 /* stats_cache.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = stats_cache.h; sourceTree = "<group>"; };
 		1035A226D59181C9B97FB634 /* ImportViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportViewController.swift; sourceTree = "<group>"; };
-		10FC707F93D1015261FAECA4 /* stats_resolve_probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = stats_resolve_probe.c; sourceTree = "<group>"; };
+		13830C028B7FC0640642A5F2 /* LuaToolsFixesClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LuaToolsFixesClient.swift; sourceTree = "<group>"; };
 		17110BF276D8FFBDC908BC32 /* Subprocess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subprocess.swift; sourceTree = "<group>"; };
+		18914F50BC6E4A34F3D11AC3 /* HubcapManifestArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubcapManifestArchive.swift; sourceTree = "<group>"; };
 		189DFCF8994448D9223DF875 /* AppCardListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCardListView.swift; sourceTree = "<group>"; };
-		1D804E349E9128911B8DCECD /* anchor_probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = anchor_probe.c; sourceTree = "<group>"; };
+		209957FFB6BF6CC3D3CF78E3 /* FixesViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixesViewController.swift; sourceTree = "<group>"; };
 		2487A27F2C4BDD0139EDDFBD /* config.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = config.h; sourceTree = "<group>"; };
 		2788DAF13536E636F2944149 /* sigdb.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = sigdb.c; sourceTree = "<group>"; };
 		278D608A4C94651FCD5CC9D3 /* MacCrab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacCrab.swift; sourceTree = "<group>"; };
-		2B336303B6593BA24509A30F /* webpatch_probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = webpatch_probe.c; sourceTree = "<group>"; };
 		2CD26FB6DE970B37485791AE /* dlc.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = dlc.h; sourceTree = "<group>"; };
 		2D7C6B2A0D65DD618507FCE7 /* constants.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = constants.h; sourceTree = "<group>"; };
 		2D7F06564A6033FF0E165D7E /* stats_cache.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = stats_cache.c; sourceTree = "<group>"; };
@@ -70,16 +88,20 @@
 		339A17D85D89AFF61296E614 /* spawn_client.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = spawn_client.c; sourceTree = "<group>"; };
 		39606594953D55CF4263DAD1 /* license.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = license.c; sourceTree = "<group>"; };
 		39C1855AC1CD43DCD949A38E /* build.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = build.sh; sourceTree = "<group>"; };
+		3A982886AF7233D58AC9FD50 /* HubcapStoreBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubcapStoreBridge.swift; sourceTree = "<group>"; };
 		3C4717BFBFF48D52335E4BD1 /* package.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = package.c; sourceTree = "<group>"; };
 		3CF2A7C4A4883FDA3A484541 /* resolver.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = resolver.h; sourceTree = "<group>"; };
 		3EC814AF19342E4DD03660CE /* config.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = config.c; sourceTree = "<group>"; };
 		3F7BBB1D5855E17D377848DB /* package.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = package.h; sourceTree = "<group>"; };
 		40E7147BBCD4C025DFC6E388 /* aob.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = aob.c; sourceTree = "<group>"; };
+		410580B3D77A227B9F003926 /* CEFWebSocket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CEFWebSocket.swift; sourceTree = "<group>"; };
 		410992EEE19CD5F8217DC79C /* session.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = session.h; sourceTree = "<group>"; };
 		42032FC37947D4B92DC12DE3 /* anchor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = anchor.h; sourceTree = "<group>"; };
+		4249DE95575E3B90C813DC75 /* LuaToolsGamesClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LuaToolsGamesClient.swift; sourceTree = "<group>"; };
 		444544E27FB73F0EC92152D6 /* license.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = license.h; sourceTree = "<group>"; };
 		4C3B1CF8DCCC7E041C9A699D /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		51154C606410C8B19556C18D /* PackageFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageFetcher.swift; sourceTree = "<group>"; };
+		5A6896F653C16E82E1618570 /* HubcapViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubcapViewController.swift; sourceTree = "<group>"; };
 		5C9E3BC3BDCAEA4BAEF59196 /* ticket.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ticket.c; sourceTree = "<group>"; };
 		61BD281B836872479CC6B551 /* resolver.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = resolver.c; sourceTree = "<group>"; };
 		662D8C8E389091E1FEBC0285 /* ZipImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZipImporter.swift; sourceTree = "<group>"; };
@@ -89,9 +111,10 @@
 		716AF125EC92645AB01189FE /* reconcile.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = reconcile.h; sourceTree = "<group>"; };
 		74E9ACDE1B9955409A96B76A /* depot.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = depot.h; sourceTree = "<group>"; };
 		752BE70E2EB8396C53E8B095 /* SidebarViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewController.swift; sourceTree = "<group>"; };
-		7D14C720EFDA44E4E3972527 /* config_probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = config_probe.c; sourceTree = "<group>"; };
+		7BF793A516E7F0669B0061CF /* HubcapClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubcapClient.swift; sourceTree = "<group>"; };
 		837AF12554001F72AB3C3060 /* dlc.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = dlc.c; sourceTree = "<group>"; };
 		86592EA528C00BD6EBE651D3 /* hook_whatsnew.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = hook_whatsnew.c; sourceTree = "<group>"; };
+		86ECCE1C191C87C72DCD0451 /* hubcap.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = hubcap.h; sourceTree = "<group>"; };
 		876F1575738BDC963F4B010F /* hook_depot.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = hook_depot.c; sourceTree = "<group>"; };
 		89381332819B970C11716E37 /* sigdb.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = sigdb.h; sourceTree = "<group>"; };
 		8A21ECA29419772E6B0DDF0E /* hook_manifest.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = hook_manifest.c; sourceTree = "<group>"; };
@@ -99,9 +122,10 @@
 		8B6116EC3DB0E96BFD97E71E /* log.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = log.h; sourceTree = "<group>"; };
 		8BFA2256C5E0B1D0BACD2DE3 /* Makefile */ = {isa = PBXFileReference; path = Makefile; sourceTree = "<group>"; };
 		8E389131FAD1735A7D44C1AA /* hook_ticket.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = hook_ticket.c; sourceTree = "<group>"; };
+		8EAEE915311EAA840782E4C1 /* CloudSavesEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSavesEngine.swift; sourceTree = "<group>"; };
 		903CE5FAC2DFF34ABE9C992A /* ConfigStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigStore.swift; sourceTree = "<group>"; };
+		91BB82759F978B04E60C065E /* AppLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLog.swift; sourceTree = "<group>"; };
 		9200F821833408FF5F7C5915 /* ctx.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ctx.c; sourceTree = "<group>"; };
-		939AB583D5B425122E45C544 /* aob_probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = aob_probe.c; sourceTree = "<group>"; };
 		93DE17924F218DA47B8F2AD2 /* macSteam.app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; path = macSteam.app; sourceTree = "<group>"; };
 		94CAD8EC207DD6E316BC7317 /* depot.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = depot.c; sourceTree = "<group>"; };
 		96C35A928329C7496C0F8712 /* anchor.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = anchor.c; sourceTree = "<group>"; };
@@ -111,9 +135,12 @@
 		A0B8F422D587B1FD6C261D53 /* apps.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = apps.h; sourceTree = "<group>"; };
 		A1080EBDD59AAACA5C0A567E /* schema_owners.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = schema_owners.c; sourceTree = "<group>"; };
 		A2D04BC391E61B91B06B5559 /* hooks.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = hooks.h; sourceTree = "<group>"; };
+		A3471EE4310A43585F615088 /* hubcap-store.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "hubcap-store.js"; sourceTree = "<group>"; };
 		A4C41DF1AD1F641B9C00E549 /* aob.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = aob.h; sourceTree = "<group>"; };
+		A8E7C030A47777CB53250F95 /* CloudSavesRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSavesRunner.swift; sourceTree = "<group>"; };
 		AAE1489CD1A66BA0F384DCA4 /* macho.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = macho.h; sourceTree = "<group>"; };
 		AE68CD9D365A42039050E4F0 /* macSteam.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = macSteam.icns; sourceTree = "<group>"; };
+		AF56542D94EAB60BEC800282 /* CloudSavesViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSavesViewController.swift; sourceTree = "<group>"; };
 		AF6C1A74265330CEBB467077 /* hook_apps.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = hook_apps.c; sourceTree = "<group>"; };
 		B1A8858DD3858C37AD23F2A9 /* ImportDropViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportDropViews.swift; sourceTree = "<group>"; };
 		B22A1DE83F5FBF0A4004D88D /* SteamStoreClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamStoreClient.swift; sourceTree = "<group>"; };
@@ -125,16 +152,20 @@
 		BC7F9E7C2E5548DF28E74076 /* hook_license.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = hook_license.c; sourceTree = "<group>"; };
 		BD4C5C7602D5BB11A2FDECF9 /* LuaManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LuaManifest.swift; sourceTree = "<group>"; };
 		C0D8696A498BDB94DF40E2B5 /* Makefile */ = {isa = PBXFileReference; path = Makefile; sourceTree = "<group>"; };
+		C609E3224FF8077347CB463C /* HubcapStoreInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubcapStoreInstaller.swift; sourceTree = "<group>"; };
 		C901772F1F2152D0F4A510FA /* hex.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = hex.h; sourceTree = "<group>"; };
 		CA713A95B53A14A4E5B8077A /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		CBFF5425A91A8227C1E5C649 /* GameReviewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameReviewCell.swift; sourceTree = "<group>"; };
 		CF10CE7907305E518E936622 /* PackageServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageServer.swift; sourceTree = "<group>"; };
+		D70340A667FEE076CD19A0E1 /* LuaToolsManifestInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LuaToolsManifestInstaller.swift; sourceTree = "<group>"; };
 		D8D0BD68B24BA51E2A42FDE9 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		D95B81BBDE522D1F417F3599 /* hook_stats.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = hook_stats.c; sourceTree = "<group>"; };
 		DB16123FC5500F4323CB5F70 /* loader.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = loader.c; sourceTree = "<group>"; };
 		DC29ED53A77D88C3772FE750 /* SteamBundleInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamBundleInstaller.swift; sourceTree = "<group>"; };
 		E2F527C859C2B5BCB42EDD0C /* hook_package.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = hook_package.c; sourceTree = "<group>"; };
+		E4EC29D9473647C58016346B /* GoogleDriveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleDriveService.swift; sourceTree = "<group>"; };
 		EA329D034FBD1F6A47EF2FB0 /* InstallViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallViewController.swift; sourceTree = "<group>"; };
+		EB032AE615C6C29ABDB7E436 /* LuaToolsAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LuaToolsAuth.swift; sourceTree = "<group>"; };
 		ED9C4BCECFB3EEEE8981243C /* RepairViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepairViewController.swift; sourceTree = "<group>"; };
 		F279B8792535DE812DA27E7A /* version.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = version.h; sourceTree = "<group>"; };
 		F2CA924DCA32509E3A64D778 /* apps.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = apps.c; sourceTree = "<group>"; };
@@ -142,8 +173,10 @@
 		F69E282893128DA01594B4FF /* Paths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Paths.swift; sourceTree = "<group>"; };
 		F6E121533D3A1244B6A929A8 /* reconcile.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = reconcile.c; sourceTree = "<group>"; };
 		F725E77B4613A570D32F59FF /* MacsteamConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacsteamConfig.swift; sourceTree = "<group>"; };
+		FB0C25C90339D24B1D23E352 /* GamesViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamesViewController.swift; sourceTree = "<group>"; };
 		FB5E1ECB5A1321179A6C2267 /* log.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = log.c; sourceTree = "<group>"; };
 		FB775E8332709FBB761A68AB /* ConfigViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigViewController.swift; sourceTree = "<group>"; };
+		FCF9AA282B72CF44A2462E5C /* hubcap.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = hubcap.c; sourceTree = "<group>"; };
 		FD2A14FC07A01E3E8371C2AF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -188,18 +221,6 @@
 			path = scripts;
 			sourceTree = "<group>";
 		};
-		4BA6FD345B8A1344B422D880 /* tests */ = {
-			isa = PBXGroup;
-			children = (
-				1D804E349E9128911B8DCECD /* anchor_probe.c */,
-				939AB583D5B425122E45C544 /* aob_probe.c */,
-				7D14C720EFDA44E4E3972527 /* config_probe.c */,
-				10FC707F93D1015261FAECA4 /* stats_resolve_probe.c */,
-				2B336303B6593BA24509A30F /* webpatch_probe.c */,
-			);
-			path = tests;
-			sourceTree = "<group>";
-		};
 		5383426282C181A072012115 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -221,6 +242,14 @@
 				89381332819B970C11716E37 /* sigdb.h */,
 			);
 			path = resolver;
+			sourceTree = "<group>";
+		};
+		76079DA24D4B7FBB5AC209F8 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A3471EE4310A43585F615088 /* hubcap-store.js */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		78085BBFB8E6A5A2ED5527A0 /* build */ = {
@@ -278,7 +307,6 @@
 				B4577B57EDEAF95AA2FA861D /* macsteam-app */,
 				462C55FBE5E9DC284ED91D6D /* scripts */,
 				80C3121E03FC8DB5D499A191 /* src */,
-				4BA6FD345B8A1344B422D880 /* tests */,
 				5383426282C181A072012115 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -336,14 +364,31 @@
 			children = (
 				189DFCF8994448D9223DF875 /* AppCardListView.swift */,
 				0AF53423D1C5852034F7E2BD /* AppDelegate.swift */,
+				91BB82759F978B04E60C065E /* AppLog.swift */,
+				410580B3D77A227B9F003926 /* CEFWebSocket.swift */,
+				8EAEE915311EAA840782E4C1 /* CloudSavesEngine.swift */,
+				A8E7C030A47777CB53250F95 /* CloudSavesRunner.swift */,
+				AF56542D94EAB60BEC800282 /* CloudSavesViewController.swift */,
 				903CE5FAC2DFF34ABE9C992A /* ConfigStore.swift */,
 				FB775E8332709FBB761A68AB /* ConfigViewController.swift */,
 				CA713A95B53A14A4E5B8077A /* DesignSystem.swift */,
+				209957FFB6BF6CC3D3CF78E3 /* FixesViewController.swift */,
 				CBFF5425A91A8227C1E5C649 /* GameReviewCell.swift */,
+				FB0C25C90339D24B1D23E352 /* GamesViewController.swift */,
+				E4EC29D9473647C58016346B /* GoogleDriveService.swift */,
+				7BF793A516E7F0669B0061CF /* HubcapClient.swift */,
+				18914F50BC6E4A34F3D11AC3 /* HubcapManifestArchive.swift */,
+				3A982886AF7233D58AC9FD50 /* HubcapStoreBridge.swift */,
+				C609E3224FF8077347CB463C /* HubcapStoreInstaller.swift */,
+				5A6896F653C16E82E1618570 /* HubcapViewController.swift */,
 				B1A8858DD3858C37AD23F2A9 /* ImportDropViews.swift */,
 				1035A226D59181C9B97FB634 /* ImportViewController.swift */,
 				EA329D034FBD1F6A47EF2FB0 /* InstallViewController.swift */,
 				BD4C5C7602D5BB11A2FDECF9 /* LuaManifest.swift */,
+				EB032AE615C6C29ABDB7E436 /* LuaToolsAuth.swift */,
+				13830C028B7FC0640642A5F2 /* LuaToolsFixesClient.swift */,
+				4249DE95575E3B90C813DC75 /* LuaToolsGamesClient.swift */,
+				D70340A667FEE076CD19A0E1 /* LuaToolsManifestInstaller.swift */,
 				278D608A4C94651FCD5CC9D3 /* MacCrab.swift */,
 				F725E77B4613A570D32F59FF /* MacsteamConfig.swift */,
 				D8D0BD68B24BA51E2A42FDE9 /* main.swift */,
@@ -360,6 +405,7 @@
 				17110BF276D8FFBDC908BC32 /* Subprocess.swift */,
 				0B35049B5E0AC70E90976A8E /* UpdaterManager.swift */,
 				662D8C8E389091E1FEBC0285 /* ZipImporter.swift */,
+				76079DA24D4B7FBB5AC209F8 /* Resources */,
 			);
 			path = MacsteamApp;
 			sourceTree = "<group>";
@@ -369,6 +415,8 @@
 			children = (
 				9200F821833408FF5F7C5915 /* ctx.c */,
 				F5384176F2D8EFBB6C1ABAFC /* ctx.h */,
+				FCF9AA282B72CF44A2462E5C /* hubcap.c */,
+				86ECCE1C191C87C72DCD0451 /* hubcap.h */,
 				DB16123FC5500F4323CB5F70 /* loader.c */,
 				B32DB06826EE4645EF442E0F /* macho.c */,
 				AAE1489CD1A66BA0F384DCA4 /* macho.h */,
@@ -496,6 +544,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				94A638DD6AEEDB1F0938FB09 /* hubcap-store.js in Resources */,
 				4938DA2825326DF3B304C5C4 /* (null) in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -538,14 +587,31 @@
 			files = (
 				278FDA572C9F5AAC5B46DB17 /* AppCardListView.swift in Sources */,
 				C6C8555768D5266BC25C3C6A /* AppDelegate.swift in Sources */,
+				561AE93C59C295883E155AF7 /* AppLog.swift in Sources */,
+				B41FBF0B3B248CCF31810C11 /* CEFWebSocket.swift in Sources */,
+				B7EA2C7788A5898F38D2B977 /* CloudSavesEngine.swift in Sources */,
+				8864708BB5A30DFC0FC19AE1 /* CloudSavesRunner.swift in Sources */,
+				920110D4E34701E06CB0A49E /* CloudSavesViewController.swift in Sources */,
 				95CB2D4FD35820C8E0BDEAF1 /* ConfigStore.swift in Sources */,
 				B4DD3956CFABEFD36653E4B4 /* ConfigViewController.swift in Sources */,
 				0ADB1C9603F44951D9F03C48 /* DesignSystem.swift in Sources */,
+				6DD2000FD792D60FF6DE37E4 /* FixesViewController.swift in Sources */,
 				11F50264AF1768A2596E5D58 /* GameReviewCell.swift in Sources */,
+				5E18919E614C1BD45DED0555 /* GamesViewController.swift in Sources */,
+				7E1A88D3447BD89D31CFFBE6 /* GoogleDriveService.swift in Sources */,
+				67F22D2ADCB14F0E910B40F9 /* HubcapClient.swift in Sources */,
+				07C6BFBB445334E67D2AF7FA /* HubcapManifestArchive.swift in Sources */,
+				13CFE54B7C9EE07D897E7A57 /* HubcapStoreBridge.swift in Sources */,
+				21D52B36C60527F77BC8A5B8 /* HubcapStoreInstaller.swift in Sources */,
+				CB52B136A01DF41CF81C28B3 /* HubcapViewController.swift in Sources */,
 				BEC5A3D01AC72E63330D7BA4 /* ImportDropViews.swift in Sources */,
 				BAB300C772084F35C44A0525 /* ImportViewController.swift in Sources */,
 				CB9548875259704AEBC19330 /* InstallViewController.swift in Sources */,
 				E329E1FDCD5BA91A8A9D9B66 /* LuaManifest.swift in Sources */,
+				F826C432149F66A5474D5D12 /* LuaToolsAuth.swift in Sources */,
+				949B326A06E85678568900DF /* LuaToolsFixesClient.swift in Sources */,
+				37CDF1A76AB1DC1D50845DF2 /* LuaToolsGamesClient.swift in Sources */,
+				3282943AFDE6B9236576F28B /* LuaToolsManifestInstaller.swift in Sources */,
 				DDDFEB13CFE7D84D5538AE7A /* MacCrab.swift in Sources */,
 				90A4D190A38226018B3C7EC6 /* MacsteamConfig.swift in Sources */,
 				0DE826FCF7922BF50EBFAE0C /* MainViewController.swift in Sources */,
@@ -660,7 +726,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 14;
 				EXECUTABLE_NAME = MacsteamApp;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "macsteam-app/Info.plist";
@@ -668,7 +734,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.7.1;
+				MARKETING_VERSION = 0.9.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.macsteam.app;
 				PRODUCT_MODULE_NAME = MacsteamApp;
 				PRODUCT_NAME = Macsteam;
@@ -760,7 +826,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 14;
 				EXECUTABLE_NAME = MacsteamApp;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "macsteam-app/Info.plist";
@@ -768,7 +834,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.7.1;
+				MARKETING_VERSION = 0.9.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.macsteam.app;
 				PRODUCT_MODULE_NAME = MacsteamApp;
 				PRODUCT_NAME = Macsteam;

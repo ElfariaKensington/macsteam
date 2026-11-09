@@ -75,6 +75,22 @@ static int read_text(const char *path, char *buf, size_t n) {
     return 0;
 }
 
+// Read a string out of Steam's Info.plist so the launcher can preserve another
+// injector's environment (NotProton writes its dylib and controller mask there).
+static int read_plist_string(const char *key_path, char *buf, size_t n) {
+    char cmd[PATH_MAX * 2];
+    snprintf(cmd, sizeof cmd,
+             "/usr/libexec/PlistBuddy -c 'Print %s' \"%s/Contents/Info.plist\" 2>/dev/null",
+             key_path, SX_STUB_BUNDLE);
+    FILE *p = popen(cmd, "r");
+    if (!p) return -1;
+    if (!fgets(buf, (int)n, p)) { pclose(p); return -1; }
+    pclose(p);
+    size_t len = strlen(buf);
+    while (len && (buf[len - 1] == '\n' || buf[len - 1] == '\r')) buf[--len] = '\0';
+    return len ? 0 : -1;
+}
+
 
 // Write to a temp beside dst and rename in, so a partial write never leaves a
 // truncated file at dst (a truncated macsteam.dylib would be DYLD-inserted and
@@ -276,6 +292,16 @@ static void run_pkill(const char *flag, const char *pat) {
     run_wait(av);
 }
 
+static void run_pkill9(const char *pat) {
+    char *av[] = { "/usr/bin/pkill", "-9", "-f", (char *)pat, NULL };
+    run_wait(av);
+}
+
+static void run_killall9(const char *name) {
+    char *av[] = { "/usr/bin/killall", "-9", (char *)name, NULL };
+    run_wait(av);
+}
+
 // Slap Steam's KeepAlive ipctool launchd agent, pkill can't beat KeepAlive
 // (launchd resurrects a stale ipcserver holding the mach name a fresh steam_osx session needs).
 static void bootout_ipc_agent(FILE *log) {
@@ -296,13 +322,17 @@ static void prekill(FILE *log) {
     // Slap the KeepAlive agent first so launchd stops resurrecting ipcserver
     bootout_ipc_agent(log);
     for (int r = 0; r < 3; r++) {
-        run_pkill("-x", "steam_osx");
-        for (int i = 0; fpats[i]; i++) run_pkill("-f", fpats[i]);
+        // SIGTERM can be ignored by a running Steam client (and NotProton hooks
+        // spawn/exec); SIGKILL guarantees the old UI process is gone before we
+        // launch the combined macSteam + NotProton instance.
+        run_killall9("steam_osx");
+        for (int i = 0; fpats[i]; i++) run_pkill9(fpats[i]);
         usleep(500000);
     }
     // Once more. A mach lookup mid-sweep can re-launch the agent, and the IPC namespace has to be clean.
     bootout_ipc_agent(log);
-    run_pkill("-f", "ipcserver");
+    run_pkill9("ipcserver");
+    run_killall9("steam_osx");
     ts(log); fprintf(log, "prekill sweep complete\n"); fflush(log);
 }
 
@@ -355,7 +385,22 @@ int main(int argc, char **argv) {
         return 2;
     }
 
-    setenv("DYLD_INSERT_LIBRARIES", DYLIB, 1);
+    // Preserve another injector's dylib (NotProton) while adding macSteam.
+    char existing_insert[PATH_MAX * 2] = "";
+    char combined_insert[PATH_MAX * 3];
+    read_plist_string(":LSEnvironment:DYLD_INSERT_LIBRARIES", existing_insert,
+                      sizeof existing_insert);
+    if (existing_insert[0] && !strstr(existing_insert, DYLIB))
+        snprintf(combined_insert, sizeof combined_insert, "%s:%s", DYLIB, existing_insert);
+    else
+        snprintf(combined_insert, sizeof combined_insert, "%s", DYLIB);
+    setenv("DYLD_INSERT_LIBRARIES", combined_insert, 1);
+
+    char controller_mask[128] = "";
+    if (read_plist_string(":LSEnvironment:SDL_JOYSTICK_BLACKLIST_DEVICES", controller_mask,
+                          sizeof controller_mask) == 0)
+        setenv("SDL_JOYSTICK_BLACKLIST_DEVICES", controller_mask, 1);
+
     // STEAM_APP_BUNDLE_PATH=stub. sub_10002BDD2 sees it set and skips unbundle+execv
     // (dylib stays loaded) and takes the "No update necessary" branch. So much silly shit to avoid
     // having to modify the app bundle...
@@ -384,7 +429,7 @@ int main(int argc, char **argv) {
     }
     ts(log);
     fprintf(log, "spawned steam_osx pid=%d exe=%s DYLD_INSERT=%s STEAM_APP_BUNDLE_PATH=%s\n",
-            pid, SPAWN_EXE, DYLIB, STUB_BUNDLE);
+            pid, SPAWN_EXE, combined_insert, STUB_BUNDLE);
     fflush(log);
     printf("spawned steam_osx pid=%d\n", pid);
     return 0;

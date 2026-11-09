@@ -6,6 +6,8 @@ enum SteamInstaller {
     enum Status: Equatable {
         case notInstalled          // pristine Valve bundle
         case installed             // macsteam injected, runtime stripped
+        case installedLauncher     // macSteam.app launcher (NotProton compatibility)
+        case installedDirect       // direct Steam launch, two dylibs in LSEnvironment
         case outdated(bundled: String, deployed: String) // dylib needs update
         case steamMissing          // /Applications/Steam.app absent
         case foreign               // patched by something else (unknown state)
@@ -18,6 +20,18 @@ enum SteamInstaller {
     static func status() -> Status {
         let fm = FileManager.default
         guard fm.fileExists(atPath: Paths.steamApp.path) else { return .steamMissing }
+
+        if launcherInstalled {
+            return .installedLauncher
+        }
+        if directModeInstalled {
+            let bundled = bundledDylibVersion()
+            let deployed = deployedDylibVersion()
+            if let bundled, let deployed, bundled != deployed {
+                return .outdated(bundled: bundled, deployed: deployed)
+            }
+            return .installedDirect
+        }
 
         let dylibPresent = fm.fileExists(atPath: Paths.steamAppInjectedDylib.path)
         let insertsUs = insertedLibraries().contains(Paths.steamAppInjectedDylib.path)
@@ -52,6 +66,161 @@ enum SteamInstaller {
         FileManager.default.fileExists(atPath: Paths.steamCfgRoot.path)
     }
 
+    static var launcherInstalled: Bool {
+        FileManager.default.fileExists(atPath: Paths.launcherApp.path)
+    }
+
+    static var directModeInstalled: Bool {
+        insertedLibraries().contains(Paths.notProtonCompatibleDylib.path)
+            && FileManager.default.fileExists(atPath: Paths.notProtonCompatibleDylib.path)
+    }
+
+    static var notProtonInstalled: Bool {
+        insertedLibraries().contains {
+            URL(fileURLWithPath: $0).lastPathComponent == "notproton.dylib"
+        }
+    }
+
+    /// True when the real NotProton dylib is present, as opposed to macSteam's own
+    /// compatibility copy (which also uses the `notproton.dylib` basename).
+    static var notProtonPresent: Bool {
+        let realPath = Paths.steamApp
+            .appendingPathComponent("Contents/MacOS/notproton.dylib")
+        if FileManager.default.fileExists(atPath: realPath.path) { return true }
+        let compat = Paths.notProtonCompatibleDylib.standardizedFileURL.path
+        return insertedLibraries().contains { path in
+            URL(fileURLWithPath: path).lastPathComponent == "notproton.dylib"
+                && URL(fileURLWithPath: path).standardizedFileURL.path != compat
+        }
+    }
+
+    static func hasForeignInsert() -> Bool {
+        let ours = Paths.steamAppInjectedDylib.path
+        return insertedLibraries().contains {
+            let name = URL(fileURLWithPath: $0).lastPathComponent
+            return $0 != ours && name != "macsteam.dylib" && name != "notproton.dylib"
+        }
+    }
+
+    /// NotProton owns Steam's DYLD_INSERT slot. Remove macSteam from it, leave
+    /// NotProton alone, and deploy the launcher that injects both dylibs.
+    static func installNotProtonCompatibility(sourceDylib: URL) throws {
+        guard let launcher = Bundle.main.resourceURL?
+            .appendingPathComponent("macSteamLauncher.app"),
+              FileManager.default.fileExists(atPath: launcher.path) else {
+            throw StepFailure(step: "Install launcher",
+                              detail: "The bundled macSteam launcher is missing.")
+        }
+        try ensureModifiable()
+        let fm = FileManager.default
+        Subprocess.killSteam()
+
+        let plist = Paths.steamAppInfoPlist
+        let originalPlist = try? Data(contentsOf: plist)
+        do {
+            let ours = Paths.steamAppInjectedDylib.path
+            let compat = Paths.notProtonCompatibleDylib.path
+            let remaining = Self.launcherInsertComponents(
+                existing: insertedLibraries(), ours: ours, compat: compat)
+            if remaining.isEmpty {
+                let out = Subprocess.run("/usr/libexec/PlistBuddy",
+                                         ["-c", "Delete :LSEnvironment:DYLD_INSERT_LIBRARIES",
+                                          plist.path])
+                if out.code != 0 {
+                    throw StepFailure(step: "Patch Info.plist",
+                                      detail: out.stderr.isEmpty ? "PlistBuddy failed." : out.stderr)
+                }
+            } else {
+                try plistSet(":LSEnvironment:DYLD_INSERT_LIBRARIES", remaining.joined(separator: ":"))
+            }
+            try adhocSign(Paths.steamApp)
+        } catch {
+            if let originalPlist { try? originalPlist.write(to: plist) }
+            try? adhocSign(Paths.steamApp)
+            throw error
+        }
+
+        do {
+            if fm.fileExists(atPath: Paths.launcherApp.path) {
+                try fm.removeItem(at: Paths.launcherApp)
+            }
+            try fm.copyItem(at: launcher, to: Paths.launcherApp)
+            try adhocSign(Paths.launcherApp)
+            // Direct mode's copy is no longer injected; the launcher carries macSteam.
+            try? fm.removeItem(at: Paths.notProtonCompatibleDylib)
+        } catch {
+            if let originalPlist { try? originalPlist.write(to: plist) }
+            try? adhocSign(Paths.steamApp)
+            throw error
+        }
+
+        try UpdateMode.apply()
+        registerBundle()
+        _ = sourceDylib // version is carried inside the bundled launcher
+        NotProtonSupport.clearQuarantine()
+    }
+
+    /// Put macSteam in LSEnvironment under the filename `notproton.dylib` alongside
+    /// the real NotProton path. NotProton ignores paths with that basename, so
+    /// launching Steam.app directly loads both dylibs; no separate launcher needed.
+    static func installDirectCompatibility(sourceDylib: URL) throws {
+        try ensureModifiable()
+        let fm = FileManager.default
+        Subprocess.killSteam()
+
+        let plist = Paths.steamAppInfoPlist
+        let originalPlist = try? Data(contentsOf: plist)
+        do {
+            try Paths.ensureDir(Paths.configDir)
+            if fm.fileExists(atPath: Paths.notProtonCompatibleDylib.path) {
+                try fm.removeItem(at: Paths.notProtonCompatibleDylib)
+            }
+            try fm.copyItem(at: sourceDylib, to: Paths.notProtonCompatibleDylib)
+            try adhocSign(Paths.notProtonCompatibleDylib)
+            if let version = bundledDylibVersion() {
+                try version.write(to: Paths.configDir.appendingPathComponent("dylib.version"),
+                                  atomically: true, encoding: .utf8)
+            }
+
+            let ours = Paths.steamAppInjectedDylib.path
+            let compat = Paths.notProtonCompatibleDylib.path
+            let components = Self.directInsertComponents(existing: insertedLibraries(),
+                                                         ours: ours, compat: compat)
+            try plistSet(":LSEnvironment:DYLD_INSERT_LIBRARIES",
+                         components.joined(separator: ":"))
+            try adhocSign(Paths.steamApp)
+        } catch {
+            if let originalPlist { try? originalPlist.write(to: plist) }
+            try? adhocSign(Paths.steamApp)
+            throw error
+        }
+
+        try? fm.removeItem(at: Paths.launcherApp)
+        try UpdateMode.apply()
+        registerBundle()
+        NotProtonSupport.clearQuarantine()
+    }
+
+    static func removeDirectCompatibility() {
+        let fm = FileManager.default
+        let compat = Paths.notProtonCompatibleDylib.path
+        let remaining = insertedLibraries().filter { $0 != compat }
+        if remaining.isEmpty {
+            _ = Subprocess.run("/usr/libexec/PlistBuddy",
+                               ["-c", "Delete :LSEnvironment:DYLD_INSERT_LIBRARIES",
+                                Paths.steamAppInfoPlist.path])
+        } else {
+            try? plistSet(":LSEnvironment:DYLD_INSERT_LIBRARIES",
+                          remaining.joined(separator: ":"))
+        }
+        try? fm.removeItem(at: Paths.notProtonCompatibleDylib)
+        try? adhocSign(Paths.steamApp)
+    }
+
+    static func removeLauncherCompatibility() {
+        try? FileManager.default.removeItem(at: Paths.launcherApp)
+    }
+
     // MARK: - Install
 
     static func install(sourceDylib: URL) throws {
@@ -83,6 +252,7 @@ enum SteamInstaller {
         }
 
         try deploySignatures()
+        deployCEFDebugMarker()
 
         try plistSet(":LSEnvironment:DYLD_INSERT_LIBRARIES", mergedInsertList())
 
@@ -91,7 +261,7 @@ enum SteamInstaller {
         try adhocSign(Paths.steamAppExecutable)
         try adhocSign(Paths.steamApp)
 
-        try writeUpdateBlock()
+        try UpdateMode.apply()
 
         registerBundle()
     }
@@ -145,6 +315,29 @@ enum SteamInstaller {
         return ([ours] + existing).joined(separator: ":")
     }
 
+    /// macSteam's WhatsNew interpose uses raw syscalls. Loading it after NotProton
+    /// would swallow SteamUI file reads and NotProton's webpatch would never see
+    /// them, so the compatibility copy must be first and NotProton last.
+    static func directInsertComponents(existing: [String], ours: String,
+                                       compat: String) -> [String] {
+        var components = existing.filter {
+            $0 != ours && $0 != compat
+                && URL(fileURLWithPath: $0).lastPathComponent != "macsteam.dylib"
+        }
+        components.insert(compat, at: 0)
+        return components
+    }
+
+    /// Launcher mode keeps only the real NotProton entry; both macSteam copies
+    /// are removed because the launcher injects macSteam itself.
+    static func launcherInsertComponents(existing: [String], ours: String,
+                                         compat: String) -> [String] {
+        existing.filter {
+            $0 != ours && $0 != compat
+                && URL(fileURLWithPath: $0).lastPathComponent != "macsteam.dylib"
+        }
+    }
+
     // MARK: - Shell primitives
 
     private static func plistSet(_ keyPath: String, _ value: String) throws {
@@ -170,6 +363,17 @@ enum SteamInstaller {
         let lsregister = "/System/Library/Frameworks/CoreServices.framework/Frameworks/"
             + "LaunchServices.framework/Support/lsregister"
         _ = Subprocess.run(lsregister, ["-f", Paths.steamApp.path])
+    }
+
+    // MARK: - CEF store bridge
+
+    // Steam only opens its CEF debugging port when this marker exists at launch.
+    // Creating it here means the first launch after Install can inject the store button.
+    static func deployCEFDebugMarker() {
+        try? Paths.ensureDir(Paths.cefDebugMarker.deletingLastPathComponent())
+        if !FileManager.default.fileExists(atPath: Paths.cefDebugMarker.path) {
+            FileManager.default.createFile(atPath: Paths.cefDebugMarker.path, contents: Data())
+        }
     }
 
     // MARK: - Signatures

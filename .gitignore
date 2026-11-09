@@ -12,7 +12,10 @@ scratch/
 .scratch/
 signatures_generated.json
 out/
-tests/
+/tests/
+google-oauth.json
+cloud-saves-token.json
+lua-tools-auth.json
 
 xcuserdata/
 *.xcuserstate

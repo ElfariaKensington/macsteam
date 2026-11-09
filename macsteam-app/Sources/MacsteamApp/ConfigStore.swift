@@ -30,6 +30,10 @@ final class ConfigStore {
         }
     }
 
+    func reloadFromDisk() {
+        load()
+    }
+
     func mutate(_ change: (inout MacsteamConfig) -> Void) throws {
         reconcileWithDiskIfChanged()
         change(&config)

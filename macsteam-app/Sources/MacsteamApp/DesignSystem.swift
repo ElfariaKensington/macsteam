@@ -32,7 +32,6 @@ enum Metrics {
     static let headerGap: CGFloat = 18
     static let cornerRadius: CGFloat = 10
     static let hairlineAlpha: CGFloat = 0.6
-    static let formColumnWidth: CGFloat = 460
 }
 
 extension NSView {
@@ -69,6 +68,7 @@ final class SettingRow: NSView {
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         subtitleLabel.font = Typography.caption
         subtitleLabel.textColor = .secondaryLabelColor
@@ -76,6 +76,7 @@ final class SettingRow: NSView {
         subtitleLabel.lineBreakMode = .byWordWrapping
         subtitleLabel.maximumNumberOfLines = 0
         subtitleLabel.isHidden = (subtitle == nil)
+        subtitleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         control.translatesAutoresizingMaskIntoConstraints = false

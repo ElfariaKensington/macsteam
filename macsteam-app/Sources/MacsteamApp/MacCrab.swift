@@ -109,6 +109,9 @@ enum MacCrab {
                                 + "supported \(supportedVersion).")
         }
 
+        progress?("Restoring update mode")
+        try UpdateMode.apply()
+
         progress?("Done")
     }
 

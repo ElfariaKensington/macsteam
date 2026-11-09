@@ -37,14 +37,16 @@ targets:
         CFBundleExecutable: MacsteamApp
         CFBundleIconFile: AppIcon
         CFBundlePackageType: APPL
-        CFBundleShortVersionString: "0.7.1"
-        CFBundleVersion: "10"
+        CFBundleShortVersionString: "0.9.0"
+        CFBundleVersion: "14"
         LSMinimumSystemVersion: "13.0"
         LSApplicationCategoryType: public.app-category.utilities
         NSHumanReadableCopyright: "© 2026 Selectively11"
         NSHighResolutionCapable: true
         NSPrincipalClass: NSApplication
-        SUFeedURL: "https://raw.githubusercontent.com/Selectively11/macsteam/main/appcast.xml"
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        SUFeedURL: "https://raw.githubusercontent.com/ElfariaKensington/macsteam/main/appcast.xml"
         SUPublicEDKey: "rDOXzJ+vt12aWeu9hATgvz6q46MlRcgR4gbTfj5YuWQ="
     settings:
       base:
@@ -53,8 +55,8 @@ targets:
         PRODUCT_MODULE_NAME: MacsteamApp
         EXECUTABLE_NAME: MacsteamApp
         GENERATE_INFOPLIST_FILE: NO
-        MARKETING_VERSION: "0.7.1"
-        CURRENT_PROJECT_VERSION: "10"
+        MARKETING_VERSION: "0.9.0"
+        CURRENT_PROJECT_VERSION: "14"
         ASSETCATALOG_COMPILER_APPICON_NAME: ""
     postCompileScripts:
       - name: "Embed payload, signatures, and icon"
@@ -96,8 +98,6 @@ targets:
       - path: src
         buildPhase: none
       - path: scripts
-        buildPhase: none
-      - path: tests
         buildPhase: none
       - path: Makefile
         buildPhase: none

@@ -22,6 +22,25 @@ struct MacsteamConfig: Equatable {
     var appParents: [Int: Int] = [:]
 
     var hideWhatsNew = false
+
+    /// Hubcap-compatible setting. macSteam honours it by disabling Steam's native
+    /// per-app cloud switch for unlocked games, whose cloud uploads are denied by
+    /// Steam because the account does not own them.
+    var hideCloudErrors: Bool {
+        for line in extraTopLevelLines {
+            guard let idx = line.firstIndex(of: ":") else { continue }
+            let key = line[..<idx].trimmingCharacters(in: .whitespaces)
+            guard key == "HideCloudErrors" else { continue }
+            let value = line[line.index(after: idx)...]
+                .trimmingCharacters(in: .whitespaces).lowercased()
+            return value == "yes" || value == "true" || value == "1"
+        }
+        return false
+    }
+
+    // Top-level settings written by other macSteam builds (for example
+    // HideCloudErrors). Preserve them so a Hubcap add doesn't silently erase them.
+    var extraTopLevelLines: [String] = []
 }
 
 // MARK: - Helpers
@@ -111,8 +130,12 @@ extension MacsteamConfig {
 
                 if let (k, v) = Self.splitKV(t) {
                     switch k {
-                    case "HideWhatsNew": cfg.hideWhatsNew = Self.parseBool(v)
-                    default: break
+                    case "HideWhatsNew":
+                        cfg.hideWhatsNew = Self.parseBool(v)
+                    default:
+                        if !v.isEmpty && !cfg.extraTopLevelLines.contains(t) {
+                            cfg.extraTopLevelLines.append(t)
+                        }
                     }
                 }
                 continue
@@ -194,6 +217,9 @@ extension MacsteamConfig {
         }
 
         out += "HideWhatsNew: \(hideWhatsNew ? "yes" : "no")\n"
+        for line in extraTopLevelLines where !line.isEmpty {
+            out += "\(line)\n"
+        }
         out += "\n"
 
         if !apps.isEmpty {
