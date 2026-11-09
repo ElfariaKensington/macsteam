@@ -30,6 +30,20 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Selectively11</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<!-- LuaTools' public source checker is HTTP-only. -->
+			<key>167.235.229.108</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>SUFeedURL</key>

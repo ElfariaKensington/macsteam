@@ -59,6 +59,18 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSApplicationCategoryType</key> <string>public.app-category.utilities</string>
     <key>NSHumanReadableCopyright</key> <string>© 2026 Selectively11</string>
     <key>NSHighResolutionCapable</key> <true/>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key> <true/>
+        <key>NSExceptionDomains</key>
+        <dict>
+            <!-- LuaTools' public source checker is HTTP-only. -->
+            <key>167.235.229.108</key>
+            <dict>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key> <true/>
+            </dict>
+        </dict>
+    </dict>
     <key>NSPrincipalClass</key>        <string>NSApplication</string>
     <key>SUFeedURL</key>               <string>https://raw.githubusercontent.com/crghofficial/macsteam/main/appcast.xml</string>
     <key>SUPublicEDKey</key>           <string>rDOXzJ+vt12aWeu9hATgvz6q46MlRcgR4gbTfj5YuWQ=</string>

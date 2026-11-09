@@ -27,6 +27,19 @@ private final class HubcapRequestLog: @unchecked Sendable {
 
 @MainActor
 final class HubcapStoreTests: XCTestCase {
+    private var savedProvider = LuaProvider.current
+
+    override func setUp() {
+        super.setUp()
+        savedProvider = LuaProvider.current
+        LuaProvider.current = .hubcap
+    }
+
+    override func tearDown() {
+        LuaProvider.current = savedProvider
+        super.tearDown()
+    }
+
     private func scratch() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("hubcap-tests-\(UUID())")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)

@@ -11,6 +11,19 @@ enum Paths {
         configDir.appendingPathComponent("config.yaml")
     }
 
+    static var appLog: URL {
+        configDir.appendingPathComponent("macsteam.log")
+    }
+    static var luaDir: URL {
+        configDir.appendingPathComponent("lua", isDirectory: true)
+    }
+    static var luaToolsAuthFile: URL {
+        configDir.appendingPathComponent("lua-tools-auth.json")
+    }
+    static var luaToolsLog: URL {
+        configDir.appendingPathComponent("lua-tools.log")
+    }
+
     static var configBackupDir: URL {
         configDir.appendingPathComponent("backups", isDirectory: true)
     }

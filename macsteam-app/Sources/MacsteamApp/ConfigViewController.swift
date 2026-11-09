@@ -10,6 +10,10 @@ final class ConfigViewController: NSViewController {
     private var currentSection: Section = .settings
 
     var hideWhatsNewSwitch: NSSwitch!
+    private var providerPopup: NSPopUpButton?
+    private var luaToolsAccountLabel: NSTextField?
+    private var luaToolsButton: NSButton?
+    private var luaToolsBusy = false
     private var checkUpdateButton: NSButton?
     private var autoUpdateSwitch: NSSwitch?
     private var updaterSub: AnyCancellable?
@@ -148,14 +152,53 @@ final class ConfigViewController: NSViewController {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] can in self?.checkUpdateButton?.isEnabled = can }
 
-        let stack = NSStackView(views: [generalHeader, togglesCard, updatesHeader, updatesCard])
+        let popup = NSPopUpButton(frame: .zero, pullsDown: false)
+        popup.addItems(withTitles: LuaProvider.allCases.map(\.title))
+        popup.selectItem(at: LuaProvider.allCases.firstIndex(of: LuaProvider.current) ?? 0)
+        popup.target = self
+        popup.action = #selector(providerChanged)
+        popup.setAccessibilityLabel("Lua source provider")
+        providerPopup = popup
+
+        let accountLabel = NSTextField(labelWithString: "Not signed in")
+        accountLabel.font = Typography.caption
+        accountLabel.textColor = Colors.secondaryText
+        accountLabel.lineBreakMode = .byTruncatingTail
+        accountLabel.translatesAutoresizingMaskIntoConstraints = false
+        accountLabel.widthAnchor.constraint(equalToConstant: 130).isActive = true
+        luaToolsAccountLabel = accountLabel
+        let signInButton = makeButton(title: "Sign in with Discord", target: self,
+                                      action: #selector(toggleLuaTools))
+        luaToolsButton = signInButton
+        let luaToolsControls = NSStackView(views: [accountLabel, signInButton])
+        luaToolsControls.orientation = .horizontal
+        luaToolsControls.spacing = 8
+        luaToolsControls.alignment = .centerY
+
+        let sourceCard = SettingsCard(rows: [
+            SettingRow(title: "Lua source",
+                       subtitle: "Where the Steam store button gets Lua and manifests. "
+                           + "Applies immediately. Hubcap uses the API key from the Hubcap tab.",
+                       control: popup),
+            SettingRow(title: "LuaTools / Discord",
+                       subtitle: "Required when LuaTools is the Lua source.",
+                       control: luaToolsControls),
+        ])
+        let sourceHeader = settingsGroupLabel("Lua source")
+        refreshLuaToolsAuth()
+
+        let stack = NSStackView(views: [sourceHeader, sourceCard, generalHeader, togglesCard,
+                                        updatesHeader, updatesCard])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 6
+        stack.setCustomSpacing(6, after: sourceHeader)
+        stack.setCustomSpacing(20, after: sourceCard)
         stack.setCustomSpacing(6, after: generalHeader)
         stack.setCustomSpacing(20, after: togglesCard)
         stack.setCustomSpacing(6, after: updatesHeader)
         stack.translatesAutoresizingMaskIntoConstraints = false
+        sourceCard.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         togglesCard.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         updatesCard.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
 
@@ -175,6 +218,47 @@ final class ConfigViewController: NSViewController {
             wantWidth,
         ])
         return root
+    }
+
+    @objc private func providerChanged() {
+        LuaProvider.current = LuaProvider.allCases[providerPopup?.indexOfSelectedItem ?? 0]
+    }
+
+    @objc private func toggleLuaTools() {
+        guard !luaToolsBusy else { return }
+        luaToolsBusy = true
+        luaToolsButton?.isEnabled = false
+        luaToolsButton?.title = "Waiting for Discord…"
+        Task { [weak self] in
+            guard let self else { return }
+            defer {
+                self.luaToolsBusy = false
+                self.luaToolsButton?.isEnabled = true
+                self.refreshLuaToolsAuth()
+            }
+            if await LuaToolsAuth.shared.isSignedIn() {
+                await LuaToolsAuth.shared.signOut()
+                return
+            }
+            do {
+                _ = try await LuaToolsAuth.shared.signIn()
+                NSApp.activate(ignoringOtherApps: true)
+            } catch {
+                presentAlert("Couldn’t sign in with Discord",
+                             error.localizedDescription, style: .warning)
+            }
+        }
+    }
+
+    private func refreshLuaToolsAuth() {
+        Task { [weak self] in
+            guard let self else { return }
+            let signedIn = await LuaToolsAuth.shared.isSignedIn()
+            let label = await LuaToolsAuth.shared.accountLabel()
+            self.luaToolsAccountLabel?.stringValue =
+                label.map { "Signed in as \($0)" } ?? "Not signed in"
+            self.luaToolsButton?.title = signedIn ? "Sign out" : "Sign in with Discord"
+        }
     }
 
     @objc private func settingsChanged() {

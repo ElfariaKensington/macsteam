@@ -47,40 +47,65 @@ final class HubcapStoreInstaller {
         // A refresh retry never consumes another Hubcap download.
         let receipt = luaDirectory.appendingPathComponent("\(appID).lua")
         if !store.config.apps.contains(appID) || !FileManager.default.fileExists(atPath: receipt.path) {
-            guard let key = apiKey() else {
-                throw HubcapStoreError(message: "Open Hubcap in macSteam Config and connect your API key first.")
+            switch LuaProvider.current {
+            case .luaTools: try await installFromLuaTools(appID: appID, receipt: receipt)
+            case .hubcap: try await installFromHubcap(appID: appID, receipt: receipt)
             }
-            async let lua = client.downloadLuaText(appID: appID, apiKey: key)
-            async let archive = client.downloadManifestArchive(appID: appID, apiKey: key)
-            let (text, zip) = try await (lua, archive)
-            let plan = try ZipImporter.buildPlan(fromLuaText: text,
-                source: URL(fileURLWithPath: "hubcap-\(appID).lua"))
-            defer { ZipImporter.cleanup(plan.extractDir) }
-            guard plan.mainAppID == appID else {
-                throw HubcapStoreError(message: "Hubcap returned Lua for a different game. Nothing was added.")
-            }
-            // Only parse Lua data; never execute downloaded Lua.
-            let script = LuaManifestParser.parse(text)
-            guard script.entries.allSatisfy({ $0.id > 0 && $0.id <= Int32.max && ($0.key == nil || $0.key?.count == 64) }),
-                  script.manifests.allSatisfy({ $0.depotID > 0 && $0.depotID <= Int32.max && (UInt64($0.manifestGID) ?? 0) > 0 }) else {
-                throw HubcapStoreError(message: "Hubcap returned invalid app IDs, depot keys, or manifest IDs.")
-            }
-            let manifests = try await Task.detached(priority: .userInitiated) {
-                try HubcapManifestArchive.unpack(zip, references: script.manifests)
-            }.value
-            defer { try? FileManager.default.removeItem(at: manifests) }
-            try Paths.ensureDir(depotCache)
-            for file in try FileManager.default.contentsOfDirectory(at: manifests,
-                includingPropertiesForKeys: nil) where file.pathExtension == "manifest" {
-                let data = try Data(contentsOf: file)
-                try data.write(to: depotCache.appendingPathComponent(file.lastPathComponent), options: .atomic)
-            }
-            try Paths.ensureDir(receipt.deletingLastPathComponent())
-            // Config is the commit point. Files already validated and safely staged on disk.
-            try store.mutate { _ = ZipImporter.merge(plan, into: &$0) }
-            try text.write(to: receipt, atomically: true, encoding: .utf8)
         }
         try await activate(appID)
+    }
+
+    private func installFromLuaTools(appID: Int, receipt: URL) async throws {
+        guard await LuaToolsAuth.shared.isSignedIn() else {
+            throw HubcapStoreError(message: "Sign in with Discord in macSteam Config → Settings to add games.")
+        }
+        guard let source = try await LuaToolsGamesClient.shared.sources(appID: appID).first else {
+            throw HubcapStoreError(message: "LuaTools has no available source for this game.")
+        }
+        let name = store.config.appNames[appID] ?? "App \(appID)"
+        let data = try await LuaToolsGamesClient.shared.downloadManifest(
+            appID: appID, source: source, gameName: name)
+        _ = try LuaToolsManifestInstaller.installManifest(
+            data: data, appID: appID, store: store,
+            luaDirectory: luaDirectory, depotCache: depotCache)
+        // Marker so a failed activation retry doesn't spend another LuaTools download.
+        try Paths.ensureDir(receipt.deletingLastPathComponent())
+        try Data().write(to: receipt, options: .atomic)
+    }
+
+    private func installFromHubcap(appID: Int, receipt: URL) async throws {
+        guard let key = apiKey() else {
+            throw HubcapStoreError(message: "Open Hubcap in macSteam Config and connect your API key first.")
+        }
+        async let lua = client.downloadLuaText(appID: appID, apiKey: key)
+        async let archive = client.downloadManifestArchive(appID: appID, apiKey: key)
+        let (text, zip) = try await (lua, archive)
+        let plan = try ZipImporter.buildPlan(fromLuaText: text,
+            source: URL(fileURLWithPath: "hubcap-\(appID).lua"))
+        defer { ZipImporter.cleanup(plan.extractDir) }
+        guard plan.mainAppID == appID else {
+            throw HubcapStoreError(message: "Hubcap returned Lua for a different game. Nothing was added.")
+        }
+        // Only parse Lua data; never execute downloaded Lua.
+        let script = LuaManifestParser.parse(text)
+        guard script.entries.allSatisfy({ $0.id > 0 && $0.id <= Int32.max && ($0.key == nil || $0.key?.count == 64) }),
+              script.manifests.allSatisfy({ $0.depotID > 0 && $0.depotID <= Int32.max && (UInt64($0.manifestGID) ?? 0) > 0 }) else {
+            throw HubcapStoreError(message: "Hubcap returned invalid app IDs, depot keys, or manifest IDs.")
+        }
+        let manifests = try await Task.detached(priority: .userInitiated) {
+            try HubcapManifestArchive.unpack(zip, references: script.manifests)
+        }.value
+        defer { try? FileManager.default.removeItem(at: manifests) }
+        try Paths.ensureDir(depotCache)
+        for file in try FileManager.default.contentsOfDirectory(at: manifests,
+            includingPropertiesForKeys: nil) where file.pathExtension == "manifest" {
+            let data = try Data(contentsOf: file)
+            try data.write(to: depotCache.appendingPathComponent(file.lastPathComponent), options: .atomic)
+        }
+        try Paths.ensureDir(receipt.deletingLastPathComponent())
+        // Config is the commit point. Files already validated and safely staged on disk.
+        try store.mutate { _ = ZipImporter.merge(plan, into: &$0) }
+        try text.write(to: receipt, atomically: true, encoding: .utf8)
     }
 }
 
