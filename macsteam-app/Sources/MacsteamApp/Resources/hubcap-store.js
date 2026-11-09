@@ -90,10 +90,11 @@
             }
             const actions = document.createElement('div');
             actions.style.cssText = 'white-space:nowrap';
-            const run = async (action, button) => {
+            const run = async (action) => {
                 if (fixBusy) return;
                 fixBusy = true;
                 const requestedApp = appID;
+                const wasDisabled = new Set([...fixesRoot.querySelectorAll('button')].filter(b => b.disabled));
                 fixesRoot.querySelectorAll('button').forEach(b => { b.disabled = true; });
                 status.hidden = false;
                 status.textContent = 'Working…';
@@ -101,17 +102,22 @@
                 fixBusy = false;
                 if (requestedApp !== appID) return;
                 if (reply.error) {
-                    fixesRoot.querySelectorAll('button').forEach(b => { b.disabled = false; });
+                    fixesRoot.querySelectorAll('button').forEach(b => { b.disabled = wasDisabled.has(b); });
                     status.textContent = reply.error;
                     return;
                 }
                 renderFixes(reply, reply.message);
             };
             if (fix.hasManifest) {
-                actions.appendChild(actionButton('Install manifest', () => run('fix-manifest')));
+                const b = actionButton(result.manifestInstalled ? 'Manifest installed' : 'Install manifest',
+                    () => run('fix-manifest'));
+                b.disabled = !!result.manifestInstalled;
+                actions.appendChild(b);
             }
             if (fix.hasFix && !fix.applied) {
-                actions.appendChild(actionButton('Install fix', () => run('fix-install')));
+                const b = actionButton('Install fix', () => run('fix-install'));
+                b.disabled = !result.gameInstalled;
+                actions.appendChild(b);
             }
             if (fix.applied) {
                 actions.appendChild(actionButton('Undo fix', () => run('fix-undo')));

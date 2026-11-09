@@ -22,6 +22,8 @@ final class SidebarViewController: NSViewController {
         .group("Library"),
         .leaf(title: "Import Apps", symbol: "square.and.arrow.down",
               item: .importZip),
+        .leaf(title: "Fixes", symbol: "cross.case",
+              item: .fixes),
         .leaf(title: "Apps", symbol: ConfigViewController.Section.apps.symbol,
               item: .config(.apps)),
         .group("macSteam"),

@@ -7,6 +7,7 @@ final class MainViewController: NSSplitViewController {
     private var sidebarVC: SidebarViewController!
     private var detailContainerVC: NSViewController!
     private var importVC: ImportViewController!
+    private var fixesVC: FixesViewController!
     private var configVC: ConfigViewController!
     private var installVC: InstallViewController!
     private var repairVC: RepairViewController!
@@ -23,6 +24,7 @@ final class MainViewController: NSSplitViewController {
         case install
         case repair
         case importZip
+        case fixes
         case config(ConfigViewController.Section)
     }
 
@@ -38,6 +40,10 @@ final class MainViewController: NSSplitViewController {
         importVC = ImportViewController(store: store, onConfigChanged: { [weak self] in
             self?.configVC.reloadFromStore()
         })
+        fixesVC = FixesViewController(store: store, onConfigChanged: { [weak self] in
+            self?.configVC.reloadFromStore()
+            self?.fixesVC.refreshAfterInstall()
+        })
         configVC = ConfigViewController(store: store)
         installVC = InstallViewController()
         repairVC = RepairViewController()
@@ -47,6 +53,7 @@ final class MainViewController: NSSplitViewController {
         detailContainerVC.addChild(installVC)
         detailContainerVC.addChild(repairVC)
         detailContainerVC.addChild(importVC)
+        detailContainerVC.addChild(fixesVC)
         detailContainerVC.addChild(configVC)
 
         sidebarVC = SidebarViewController(onSelect: { [weak self] item in
@@ -89,6 +96,9 @@ final class MainViewController: NSSplitViewController {
         case .importZip:
             child = importVC
             title = "Import Apps"
+        case .fixes:
+            child = fixesVC
+            title = "Fixes"
         case .config(let section):
             configVC.select(section: section)
             child = configVC
