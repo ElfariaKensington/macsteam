@@ -39,11 +39,6 @@ static int64_t native(void *self, void *request, void *response, void *unused) {
     *(uint8_t *)response = 1;
     return 99;
 }
-static int cached(void *user, int mode, const char *name, void *data, uint32_t *length) {
-    if (strcmp(name, "3712080") != 0) return 0;
-    *length = 128;
-    return 1;
-}
 static int get_bytes(void *buffer, void *output, int64_t size) { return 1; }
 static void frame(uint8_t *data, uint32_t method, uint32_t app, uint8_t flag) {
     uint32_t fence = METHOD_HASH_UPDATE_TICKET + UPDATE_TICKET_FENCE_DELTA;
@@ -75,10 +70,10 @@ int main(void) {
     frame(data, METHOD_HASH_UPDATE_TICKET, 848450, 0); run(data, 8, 848450, 0);
     passthrough = 1; run(data, 13, 848450, 0); passthrough = 0;
     sx_config_current = NULL; run(data, 13, 848450, 0); sx_config_current = &cfg;
-    g_store_read = cached;
-    sx_hooks_ticket_observe_owned_app((void *)1, 848450);
-    assert(source_app == 7); // configured/spoofed app cannot become a real source
-    sx_hooks_ticket_observe_owned_app((void *)1, 3712080);
+    // Source defaults to app 7. Alternate sources must be selected explicitly;
+    // no ownership-store reads are attempted by app ownership/subscription hooks.
+    assert(source_app == 7);
+    sx_ticket_set_source_app(3712080);
     assert(source_app == 3712080);
     frame(data, METHOD_HASH_UPDATE_TICKET, 848450, 1); run(data, 13, 3712080, 1);
     size_t page_size = (size_t)sysconf(_SC_PAGESIZE);

@@ -140,29 +140,9 @@ void sx_hooks_ticket_set_source_helpers(uintptr_t buf_ctor,
     g_store_read = (fn_store_read)store_read;
 }
 
-static int source_is_cached(void *cuser, uint32_t appid) {
-    char name[16];
-    snprintf(name, sizeof(name), "%u", appid);
-    uint8_t data[TICKET_STORE_CAP];
-    uint32_t size = sizeof(data);
-    return g_store_read(cuser, TICKET_STORE_MODE, name, data, &size) &&
-           size >= 48 && size <= sizeof(data);
-}
-
-void sx_hooks_ticket_observe_owned_app(void *cuser, uint32_t appid) {
-    sx_config_t *cfg = sx_config_current;
-    if (!cuser || !appid || !g_store_read || !cfg ||
-        sx_config_has_app(cfg, (int)appid) ||
-        sx_ticket_source_app() != TICKET_SOURCE_APPID) return;
-    // Only original ownership/subscription results reach here, before injection.
-    // Prefer the historical source when present, otherwise use an existing real
-    // owned ticket. No ticket is requested or manufactured by this selection.
-    if (source_is_cached(cuser, TICKET_SOURCE_APPID)) return;
-    if (source_is_cached(cuser, appid)) {
-        sx_ticket_set_source_app(appid);
-        SX_LOG("[ticket] selected existing owned ticket cache for app %u", appid);
-    }
-}
+// Ticket-source auto-discovery via ReadOwnershipStoreEntry was removed:
+ // calls from ownership/subscription hooks crash Steam 1792618285.
+ // Keep the fixed app-7 source until a verified safe discovery API exists.
 
 static int64_t hook_FindAppOwnershipTicket(void *cuser, uint32_t appid,
                                            int fetch) {

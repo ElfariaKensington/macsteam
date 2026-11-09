@@ -44,7 +44,6 @@ sx_hook_def_t *sx_hooks_manifest_defs(void);
 int  sx_hooks_stats_count(void);
 sx_hook_def_t *sx_hooks_stats_defs(void);
 
-void sx_hooks_ticket_observe_owned_app(void *cuser, uint32_t app_id);
 int  sx_hooks_ticket_count(void);
 sx_hook_def_t *sx_hooks_ticket_defs(void);
 void sx_hooks_ticket_set_helpers(uintptr_t put_bytes, uintptr_t put_tag,
@@ -58,9 +57,12 @@ void sx_hooks_ctx_set_helpers(uintptr_t getappid);
 
 void sx_hooks_relaunch_install(void);
 void sx_whatsnew_patch_installed_css(void);
+void sx_clouderrors_patch_installed_js(void);
+void sx_librarysharing_patch_installed_js(void);
 
 int sx_hooks_install_all(sx_resolve_result_t *resolved, int *total_out);
 
+int sx_hook_disabled(const char *name);
 int sx_hook_passthrough(const char *name);
 
 #endif // MACSTEAM_HOOKS_HOOKS_H
