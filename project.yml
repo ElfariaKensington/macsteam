@@ -44,6 +44,11 @@ targets:
         NSHumanReadableCopyright: "© 2026 Selectively11"
         NSHighResolutionCapable: true
         NSPrincipalClass: NSApplication
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+          NSExceptionDomains:
+            167.235.229.108:
+              NSExceptionAllowsInsecureHTTPLoads: true
         SUFeedURL: "https://raw.githubusercontent.com/Selectively11/macsteam/main/appcast.xml"
         SUPublicEDKey: "rDOXzJ+vt12aWeu9hATgvz6q46MlRcgR4gbTfj5YuWQ="
     settings:

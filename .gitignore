@@ -18,3 +18,4 @@ xcuserdata/
 *.xcuserstate
 DerivedData/
 release/
+lua-tools-auth.json

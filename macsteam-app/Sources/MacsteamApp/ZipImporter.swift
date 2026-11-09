@@ -104,7 +104,7 @@ enum ZipImporter {
             let luaText: String
             do { luaText = try String(contentsOf: luaURL, encoding: .utf8) }
             catch { throw ImportError.luaReadFailed(luaURL.lastPathComponent, error) }
-            let manifests = contents.filter { $0.pathExtension.lowercased() == "manifest" }
+            let manifests = manifestFiles(in: dir)
             return [makePlan(source: source, extractDir: dir, luaText: luaText, manifests: manifests)]
         }
 
@@ -117,10 +117,24 @@ enum ZipImporter {
             let luaText: String
             do { luaText = try String(contentsOf: luaURL, encoding: .utf8) }
             catch { continue }
-            let manifests = subContents.filter { $0.pathExtension.lowercased() == "manifest" }
+            let manifests = manifestFiles(in: subdir)
             plans.append(makePlan(source: source, extractDir: dir, luaText: luaText, manifests: manifests))
         }
         return plans
+    }
+
+    private static func manifestFiles(in directory: URL) -> [URL] {
+        guard let enumerator = FileManager.default.enumerator(
+            at: directory,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]) else { return [] }
+        var out: [URL] = []
+        for case let url as URL in enumerator where url.pathExtension.lowercased() == "manifest" {
+            if (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true {
+                out.append(url)
+            }
+        }
+        return out
     }
 
     private static func makePlan(source: URL, extractDir: URL,
@@ -158,11 +172,11 @@ enum ZipImporter {
     }
 
     @discardableResult
-    static func copyManifests(_ files: [URL]) throws -> Int {
-        try Paths.ensureDir(Paths.depotCache)
+    static func copyManifests(_ files: [URL], to depotCache: URL = Paths.depotCache) throws -> Int {
+        try Paths.ensureDir(depotCache)
         var n = 0
         for src in files {
-            let dst = Paths.depotCache.appendingPathComponent(src.lastPathComponent)
+            let dst = depotCache.appendingPathComponent(src.lastPathComponent)
             if FileManager.default.fileExists(atPath: dst.path) {
                 try? FileManager.default.removeItem(at: dst)
             }
@@ -174,9 +188,9 @@ enum ZipImporter {
 
     // Undo copyManifests when the config save fails after, so depotcache keeps no
     // unreferenced manifests. Best-effort.
-    static func removeCopiedManifests(_ files: [URL]) {
+    static func removeCopiedManifests(_ files: [URL], from depotCache: URL = Paths.depotCache) {
         for src in files {
-            let dst = Paths.depotCache.appendingPathComponent(src.lastPathComponent)
+            let dst = depotCache.appendingPathComponent(src.lastPathComponent)
             try? FileManager.default.removeItem(at: dst)
         }
     }
