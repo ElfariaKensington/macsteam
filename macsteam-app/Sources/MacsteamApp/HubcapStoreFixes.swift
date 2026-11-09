@@ -14,6 +14,8 @@ final class HubcapStoreFixes {
 
     /// Fixes LuaTools offers for the game, plus what is already applied on disk.
     func list(appID: Int) async -> [String: Any] {
+        store.load()
+        let manifestInstalled = store.config.apps.contains(appID)
         let installDir = SteamLibrary.installDir(appID: appID)
         let applied = Set(installDir.map { SteamFixInstaller.appliedFixes(installDir: $0).map(\.fixID) } ?? [])
         do {
@@ -28,9 +30,11 @@ final class HubcapStoreFixes {
                     "applied": applied.contains(fix.id),
                 ]
             }
-            return ["fixes": fixes, "gameInstalled": installDir != nil]
+            return ["fixes": fixes, "gameInstalled": installDir != nil,
+                    "manifestInstalled": manifestInstalled]
         } catch LuaToolsFixesError.noFixes {
-            return ["fixes": [] as [[String: Any]], "gameInstalled": installDir != nil]
+            return ["fixes": [] as [[String: Any]], "gameInstalled": installDir != nil,
+                    "manifestInstalled": manifestInstalled]
         } catch {
             return ["error": error.localizedDescription]
         }

@@ -11,6 +11,8 @@ final class MainViewController: NSSplitViewController {
     private var installVC: InstallViewController!
     private var repairVC: RepairViewController!
     private var hubcapVC: HubcapViewController!
+    private var fixesVC: FixesViewController!
+    private var gamesVC: GamesViewController!
 
     private let titleLabel: NSTextField = {
         let field = NSTextField(labelWithString: "")
@@ -24,6 +26,8 @@ final class MainViewController: NSSplitViewController {
         case install
         case repair
         case hubcap
+        case fixes
+        case store
         case importZip
         case config(ConfigViewController.Section)
     }
@@ -43,6 +47,14 @@ final class MainViewController: NSSplitViewController {
         configVC = ConfigViewController(store: store)
         installVC = InstallViewController()
         repairVC = RepairViewController()
+        gamesVC = GamesViewController(store: store, onConfigChanged: { [weak self] in
+            self?.configVC.reloadFromStore()
+            self?.gamesVC.reloadFromStore()
+        })
+        fixesVC = FixesViewController(store: store, onConfigChanged: { [weak self] in
+            self?.configVC.reloadFromStore()
+            self?.fixesVC.refreshAfterInstall()
+        })
         hubcapVC = HubcapViewController(store: store, onConfigChanged: { [weak self] in
             self?.configVC.reloadFromStore()
         })
@@ -52,6 +64,8 @@ final class MainViewController: NSSplitViewController {
         detailContainerVC.addChild(installVC)
         detailContainerVC.addChild(repairVC)
         detailContainerVC.addChild(hubcapVC)
+        detailContainerVC.addChild(fixesVC)
+        detailContainerVC.addChild(gamesVC)
         detailContainerVC.addChild(importVC)
         detailContainerVC.addChild(configVC)
 
@@ -95,6 +109,12 @@ final class MainViewController: NSSplitViewController {
         case .hubcap:
             child = hubcapVC
             title = "Hubcap"
+        case .fixes:
+            child = fixesVC
+            title = "Fixes"
+        case .store:
+            child = gamesVC
+            title = "Store"
         case .importZip:
             child = importVC
             title = "Import Apps"

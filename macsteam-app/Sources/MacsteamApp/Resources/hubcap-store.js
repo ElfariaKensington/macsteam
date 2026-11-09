@@ -84,8 +84,10 @@
         status.setAttribute('role', 'status');
         status.setAttribute('aria-live', 'polite');
         status.style.cssText = 'font-size:12px;color:#acb2b8;margin:6px 0';
-        status.textContent = statusText || '';
-        status.hidden = !statusText;
+        const needsGame = !result.gameInstalled && result.fixes.some(f => f.hasFix);
+        status.textContent = statusText ||
+            (needsGame ? 'Game not installed: "Install fix" needs it in your Steam library folder. Manifests can be installed now.' : '');
+        status.hidden = !status.textContent;
         fixesRoot.appendChild(status);
         for (const fix of result.fixes) {
             const row = document.createElement('div');
@@ -107,6 +109,7 @@
                 if (fixBusy) return;
                 fixBusy = true;
                 const requestedApp = appID;
+                const wasDisabled = new Set([...fixesRoot.querySelectorAll('button')].filter(b => b.disabled));
                 fixesRoot.querySelectorAll('button').forEach(b => { b.disabled = true; });
                 status.hidden = false;
                 status.textContent = 'Working…';
@@ -114,21 +117,21 @@
                 fixBusy = false;
                 if (requestedApp !== appID) return;
                 if (reply.error) {
-                    fixesRoot.querySelectorAll('button').forEach(b => { b.disabled = false; });
+                    fixesRoot.querySelectorAll('button').forEach(b => { b.disabled = wasDisabled.has(b); });
                     status.textContent = reply.error;
                     return;
                 }
                 renderFixes(reply, reply.message);
             };
             if (fix.hasManifest) {
-                actions.appendChild(actionButton('Install manifest', () => run('fix-manifest')));
+                const b = actionButton(result.manifestInstalled ? 'Manifest installed' : 'Install manifest',
+                    () => run('fix-manifest'));
+                b.disabled = !!result.manifestInstalled;
+                actions.appendChild(b);
             }
             if (fix.hasFix && !fix.applied) {
                 const b = actionButton('Install fix', () => run('fix-install'));
-                if (!result.gameInstalled) {
-                    b.disabled = true;
-                    b.title = 'Install the game with Steam first.';
-                }
+                b.disabled = !result.gameInstalled;
                 actions.appendChild(b);
             }
             if (fix.applied) {
