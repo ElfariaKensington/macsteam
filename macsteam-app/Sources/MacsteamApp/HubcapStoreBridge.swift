@@ -146,6 +146,7 @@ final class HubcapStoreBridge {
 private final class HubcapStorePage {
     private let socket: URLSessionWebSocketTask
     private let installer: HubcapStoreInstaller
+    private let fixes = HubcapStoreFixes()
     private var nextID = 0
     private var waiting: [Int: CheckedContinuation<Data, Error>] = [:]
     private var contexts: [Int: String] = [:]
@@ -267,7 +268,8 @@ private final class HubcapStorePage {
                   text.utf8.count <= 1024, let data = text.data(using: .utf8),
                   let request = try? JSONDecoder().decode(Request.self, from: data),
                   request.appID > 0, request.appID <= Int32.max, request.id.count <= 80,
-                  ["status", "add"].contains(request.action) else { return }
+                  (request.fixID?.count ?? 0) <= 80,
+                  Request.actions.contains(request.action) else { return }
             Task { await handle(request, context: context) }
         default: break
         }
@@ -280,8 +282,16 @@ private final class HubcapStorePage {
             let location = try await call("Runtime.evaluate", ["expression": "location.href", "contextId": context])
             let value = (location["result"] as? [String: Any])?["value"] as? String ?? ""
             guard HubcapStoreBridge.storeAppID(value) == request.appID, contexts[context] == topFrame else { return }
-            if request.action == "add" { try await installer.install(appID: request.appID) }
-            response = installer.status(appID: request.appID)
+            switch request.action {
+            case "fixes":
+                response = await fixes.list(appID: request.appID)
+            case "fix-manifest", "fix-install", "fix-undo":
+                guard let fixID = request.fixID, !fixID.isEmpty else { return }
+                response = await fixes.perform(request.action, appID: request.appID, fixID: fixID)
+            default:
+                if request.action == "add" { try await installer.install(appID: request.appID) }
+                response = installer.status(appID: request.appID)
+            }
         } catch { response = ["error": error.localizedDescription] }
         guard let data = try? JSONSerialization.data(withJSONObject: [request.id, response]) else { return }
         let arguments = String(decoding: data, as: UTF8.self)
@@ -293,5 +303,9 @@ private final class HubcapStorePage {
         let id: String
         let appID: Int
         let action: String
+        let fixID: String?
+
+        static let actions: Set<String> = ["status", "add", "fixes", "fix-manifest",
+                                           "fix-install", "fix-undo"]
     }
 }
