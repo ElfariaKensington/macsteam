@@ -83,6 +83,7 @@ enum SteamInstaller {
         }
 
         try deploySignatures()
+        deployCEFDebugMarker()
 
         try plistSet(":LSEnvironment:DYLD_INSERT_LIBRARIES", mergedInsertList())
 
@@ -170,6 +171,16 @@ enum SteamInstaller {
         let lsregister = "/System/Library/Frameworks/CoreServices.framework/Frameworks/"
             + "LaunchServices.framework/Support/lsregister"
         _ = Subprocess.run(lsregister, ["-f", Paths.steamApp.path])
+    }
+
+    // MARK: - CEF store bridge
+
+    // Steam only opens its CEF debugging port when this marker exists at launch.
+    static func deployCEFDebugMarker() {
+        try? Paths.ensureDir(Paths.cefDebugMarker.deletingLastPathComponent())
+        if !FileManager.default.fileExists(atPath: Paths.cefDebugMarker.path) {
+            FileManager.default.createFile(atPath: Paths.cefDebugMarker.path, contents: Data())
+        }
     }
 
     // MARK: - Signatures

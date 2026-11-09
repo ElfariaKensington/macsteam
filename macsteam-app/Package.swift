@@ -2,21 +2,21 @@
 import Foundation
 import PackageDescription
 
-var targets: [Target] = [
+let targets: [Target] = [
     .executableTarget(
         name: "MacsteamApp",
         dependencies: ["Sparkle"],
-        path: "Sources/MacsteamApp"
-    )
-]
-
-if FileManager.default.fileExists(atPath: "Tests/MacsteamAppTests") {
-    targets.append(.testTarget(
+        path: "Sources/MacsteamApp",
+        resources: [
+            .process("Resources"),
+        ]
+    ),
+    .testTarget(
         name: "MacsteamAppTests",
         dependencies: ["MacsteamApp"],
         path: "Tests/MacsteamAppTests"
-    ))
-}
+    ),
+]
 
 let package = Package(
     name: "MacsteamApp",

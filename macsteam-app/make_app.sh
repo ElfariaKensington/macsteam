@@ -24,6 +24,14 @@ cp ".build/release/$BIN_NAME" "$APP/Contents/MacOS/$BIN_NAME"
 install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/$BIN_NAME"
 cp "$ICON_SRC" "$APP/Contents/Resources/AppIcon.icns"
 
+RES_BUNDLE=".build/release/${BIN_NAME}_${BIN_NAME}.bundle"
+if [ -d "$RES_BUNDLE" ]; then
+    rm -rf "$APP/Contents/Resources/$(basename "$RES_BUNDLE")"
+    cp -R "$RES_BUNDLE" "$APP/Contents/Resources/"
+else
+    echo "warning: $RES_BUNDLE missing -- store button script not bundled" >&2
+fi
+
 # Built by the top-level Makefile (make rebuild).
 DYLIB_SRC="../out/macsteam.dylib"
 MS_VERSION=$(sed -n 's/.*MACSTEAM_VERSION[[:space:]]*"\(.*\)".*/\1/p' ../src/version.h)
@@ -58,6 +66,18 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSApplicationCategoryType</key> <string>public.app-category.utilities</string>
     <key>NSHumanReadableCopyright</key> <string>© 2026 Selectively11</string>
     <key>NSHighResolutionCapable</key> <true/>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key> <true/>
+        <key>NSExceptionDomains</key>
+        <dict>
+            <!-- LuaTools' public source checker is HTTP-only. -->
+            <key>167.235.229.108</key>
+            <dict>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key> <true/>
+            </dict>
+        </dict>
+    </dict>
     <key>NSPrincipalClass</key>        <string>NSApplication</string>
     <key>SUFeedURL</key>               <string>https://raw.githubusercontent.com/crghofficial/macsteam/main/appcast.xml</string>
     <key>SUPublicEDKey</key>           <string>rDOXzJ+vt12aWeu9hATgvz6q46MlRcgR4gbTfj5YuWQ=</string>

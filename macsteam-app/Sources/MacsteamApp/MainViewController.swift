@@ -118,6 +118,11 @@ final class MainViewController: NSSplitViewController {
         sidebarVC.select(.importZip)
         importVC.pickZip()
     }
+
+    func reloadAfterExternalConfigChange() {
+        guard isViewLoaded else { return }
+        configVC.reloadFromStore()
+    }
 }
 
 // MARK: - Window

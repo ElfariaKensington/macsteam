@@ -8,9 +8,11 @@ struct LuaEntry {
     var heading: String?  // "-- <Name> (AppID: N)" header line immediately above
 }
 
-struct LuaManifestRef {
+struct LuaManifestRef: Hashable {
     var depotID: Int
     var manifestGID: String
+
+    var fileName: String { "\(depotID)_\(manifestGID).manifest" }
 }
 
 struct LuaScript {

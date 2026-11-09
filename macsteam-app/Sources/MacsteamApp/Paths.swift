@@ -10,13 +10,49 @@ enum Paths {
     static var configFile: URL {
         configDir.appendingPathComponent("config.yaml")
     }
+    static var appLog: URL {
+        configDir.appendingPathComponent("macsteam.log")
+    }
 
     static var configBackupDir: URL {
         configDir.appendingPathComponent("backups", isDirectory: true)
     }
 
+    static var luaDir: URL {
+        configDir.appendingPathComponent("lua", isDirectory: true)
+    }
+
     static var signaturesDir: URL {
         configDir.appendingPathComponent("signatures", isDirectory: true)
+    }
+
+    // Store-page bridge handshake. The dylib watches the request and answers in the ack.
+    static var hubcapRefreshRequest: URL {
+        configDir.appendingPathComponent("hubcap-refresh.request")
+    }
+    static var hubcapRefreshAck: URL {
+        configDir.appendingPathComponent("hubcap-refresh.ack")
+    }
+    static var hubcapBridgeLock: URL {
+        configDir.appendingPathComponent("hubcap-bridge.lock")
+    }
+    static var hubcapBridgePath: URL {
+        configDir.appendingPathComponent("hubcap-bridge.path")
+    }
+    static var hubcapBridgeLog: URL {
+        configDir.appendingPathComponent("hubcap-bridge.log")
+    }
+
+    static var luaToolsAuthFile: URL {
+        configDir.appendingPathComponent("lua-tools-auth.json")
+    }
+    static var luaToolsLog: URL {
+        configDir.appendingPathComponent("lua-tools.log")
+    }
+
+    // Steam only opens its CEF debugging port when this marker exists at launch.
+    static var cefDebugMarker: URL {
+        innerClientMacOS.appendingPathComponent(".cef-enable-remote-debugging")
     }
 
     static var steamRoot: URL {

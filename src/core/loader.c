@@ -7,6 +7,7 @@
 #include "../resolver/sigdb.h"
 #include "../core/macho.h"
 #include "../core/reconcile.h"
+#include "../core/hubcap.h"
 #include "../hooks/hooks.h"
 
 #include <stdio.h>
@@ -242,6 +243,9 @@ static void *loader_worker(void *unused) {
     if (late_injection)
         arm_late_injection_reconcile(&resolved, &cfg);
 
+    // Requests that arrived while Steam was booting can now be applied.
+    sx_hubcap_set_ready(1);
+
     sx_resolve_result_free(&resolved);
     sx_sigdb_free(&sigdb);
 
@@ -268,6 +272,7 @@ static void sx_init(void) {
     SX_LOG("macsteam loaded into %s (pid %d)", getprogname(), getpid());
 
     corrupt_packageinfo_vdf();
+    sx_hubcap_start();
 
     pthread_t t;
     if (pthread_create(&t, NULL, loader_worker, NULL) == 0) {
