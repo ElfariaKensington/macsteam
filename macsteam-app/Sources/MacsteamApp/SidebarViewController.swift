@@ -20,8 +20,6 @@ final class SidebarViewController: NSViewController {
 
     private let rows: [Row] = [
         .group("Library"),
-        .leaf(title: "Hubcap", symbol: "shippingbox",
-              item: .hubcap),
         .leaf(title: "Store", symbol: "cart",
               item: .store),
         .leaf(title: "Fixes", symbol: "cross.case",

@@ -10,9 +10,8 @@ final class MainViewController: NSSplitViewController {
     private var configVC: ConfigViewController!
     private var installVC: InstallViewController!
     private var repairVC: RepairViewController!
-    private var hubcapVC: HubcapViewController!
     private var fixesVC: FixesViewController!
-    private var gamesVC: GamesViewController!
+    private var storeVC: StoreViewController!
 
     private let titleLabel: NSTextField = {
         let field = NSTextField(labelWithString: "")
@@ -25,7 +24,6 @@ final class MainViewController: NSSplitViewController {
     enum Item: Equatable {
         case install
         case repair
-        case hubcap
         case fixes
         case store
         case importZip
@@ -47,25 +45,26 @@ final class MainViewController: NSSplitViewController {
         configVC = ConfigViewController(store: store)
         installVC = InstallViewController()
         repairVC = RepairViewController()
-        gamesVC = GamesViewController(store: store, onConfigChanged: { [weak self] in
+        let gamesVC = GamesViewController(store: store, onConfigChanged: { [weak self] in
             self?.configVC.reloadFromStore()
-            self?.gamesVC.reloadFromStore()
+            self?.storeVC.reloadFromStore()
         })
         fixesVC = FixesViewController(store: store, onConfigChanged: { [weak self] in
             self?.configVC.reloadFromStore()
             self?.fixesVC.refreshAfterInstall()
         })
-        hubcapVC = HubcapViewController(store: store, onConfigChanged: { [weak self] in
+        let hubcapVC = HubcapViewController(store: store, onConfigChanged: { [weak self] in
             self?.configVC.reloadFromStore()
+            self?.storeVC.reloadFromStore()
         })
+        storeVC = StoreViewController(luaTools: gamesVC, hubcap: hubcapVC)
 
         detailContainerVC = NSViewController()
         detailContainerVC.view = NSView()
         detailContainerVC.addChild(installVC)
         detailContainerVC.addChild(repairVC)
-        detailContainerVC.addChild(hubcapVC)
         detailContainerVC.addChild(fixesVC)
-        detailContainerVC.addChild(gamesVC)
+        detailContainerVC.addChild(storeVC)
         detailContainerVC.addChild(importVC)
         detailContainerVC.addChild(configVC)
 
@@ -106,14 +105,11 @@ final class MainViewController: NSSplitViewController {
         case .repair:
             child = repairVC
             title = "Repair Steam"
-        case .hubcap:
-            child = hubcapVC
-            title = "Hubcap"
         case .fixes:
             child = fixesVC
             title = "Fixes"
         case .store:
-            child = gamesVC
+            child = storeVC
             title = "Store"
         case .importZip:
             child = importVC
