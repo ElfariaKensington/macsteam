@@ -39,7 +39,7 @@ static int hook_CheckAppOwnership(void *self, uint32_t appId, void *out) {
             SX_LOG("CheckAppOwnership: captured accountId=%u", acct);
     }
 
-    // Avoid ownership-store cache probing from generic ownership API calls.
+    // No opportunistic store probing from generic ownership calls.
     if (self) g_app_mgr = self;
     sx_reconcile_fire_library_refresh(g_app_mgr);
 
@@ -67,8 +67,8 @@ typedef uint32_t (*fn_GetSubscribedApps)(void *self, uint32_t *appids, uint32_t 
 static uint32_t hook_GetSubscribedApps(void *self, uint32_t *appids, uint32_t max_apps, uint32_t flags) {
     fn_GetSubscribedApps orig = (fn_GetSubscribedApps)orig_GetSubscribedApps;
     uint32_t count = orig(self, appids, max_apps, flags);
-    // No ownership-store probing during app enumeration: Steam 1792618285
-    // crashes when ReadOwnershipStoreEntry is called from this path.
+    // Do not read the ownership store during subscription enumeration:
+    // the Steam 1792618285 lookup crashes on this call path.
 
     if (self) g_app_mgr = self;
     sx_reconcile_fire_library_refresh(g_app_mgr);
