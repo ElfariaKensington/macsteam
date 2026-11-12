@@ -1,0 +1,247 @@
+{
+  "schema_version": 3,
+  "profile_version": 4,
+  "arch": "arm64",
+  "platform": "macos",
+  "steam_build": "1794424036",
+  "steam_build_date": "",
+  "signatures": [
+    {
+      "name": "CUser::CheckAppOwnership",
+      "func_addr_this_build": "0xa95624",
+      "aob_hex": "FF 03 04 D1 FC 6F 0A A9 FA 67 0B A9 F8 5F 0C A9 F6 57 0D A9 F4 4F 0E A9 FD 7B 0F A9 FD C3 03 91 F4 03 02 AA FB 03 01 AA F5 03 00 AA ?? ?? ?? ??",
+      "anchor": {
+        "kind": "string",
+        "value": "CheckAppOwnership"
+      }
+    },
+    {
+      "name": "CUser::BIsAppOwnedForDepot",
+      "func_addr_this_build": "0xa954ec",
+      "aob_hex": "FF 83 02 D1 FC 6F 04 A9 FA 67 05 A9 F8 5F 06 A9 F6 57 07 A9 F4 4F 08 A9 FD 7B 09 A9 FD 43 02 91 F3 03 02 AA F4 03 00 AA ?? ?? ?? ?? 08 10 40 B9"
+    },
+    {
+      "name": "CUser::GetSubscribedApps",
+      "func_addr_this_build": "0x8e281c",
+      "aob_hex": "FF 43 02 D1 F8 5F 05 A9 F6 57 06 A9 F4 4F 07 A9 FD 7B 08 A9 FD 03 02 91 F6 03 03 AA F5 03 02 AA F4 03 01 AA F3 03 00 AA E0 23 00 91 01 08 80 52 02 04 80 52 03 00 80 52 ?? ?? ?? ?? E0 23 00 91 21 00 80 52 ?? ?? ?? ?? E0 23 00 91 21 00 80 52",
+      "anchor": {
+        "kind": "nth_ref",
+        "value": "GetSubscribedApps",
+        "n": 4
+      }
+    },
+    {
+      "name": "CUser::HandleLicenseList",
+      "func_addr_this_build": "0xa97208",
+      "aob_hex": "FF C3 01 D1 FA 67 02 A9 F8 5F 03 A9 F6 57 04 A9 F4 4F 05 A9 FD 7B 06 A9 FD 83 01 91 F4 03 01 AA F5 03 00 AA FF FF 00 A9"
+    },
+    {
+      "name": "CAppInfo::GetManifestRequestCode",
+      "func_addr_this_build": "0x7bb6ec",
+      "aob_hex": "FF C3 04 D1 FA 67 0E A9 F8 5F 0F A9 F6 57 10 A9 F4 4F 11 A9 FD 7B 12 A9 FD 83 04 91 F3 03 05 AA F5 03 04 AA F8 03 03 AA"
+    },
+    {
+      "name": "CCMInterface::GetDepotDecryptionKey",
+      "func_addr_this_build": "0xaa0368",
+      "aob_hex": "FF 43 05 D1 FC 6F 12 A9 F4 4F 13 A9 FD 7B 14 A9 FD 03 05 91 F3 03 02 AA F4 03 01 AA ?? ?? ?? ?? 08 F9 47 F9 08 01 40 F9 A8 83 1D F8 E0 03 02 AA",
+      "anchor": {
+        "kind": "nth_ref",
+        "value": "Software\\Valve\\Steam\\Depots\\%u\\DecryptionKey",
+        "n": 1
+      }
+    },
+    {
+      "name": "CUtlBuffer::EnsureCapacity",
+      "func_addr_this_build": "0x10d14e8",
+      "aob_hex": "F4 4F BE A9 FD 7B 01 A9 FD 43 00 91 F3 03 00 AA 08 7C 40 39 09 01 00 12 34 01 01 0B"
+    },
+    {
+      "name": "CUtlBuffer::SeekPut",
+      "func_addr_this_build": "0x10d2bd4",
+      "aob_hex": "F4 4F BE A9 FD 7B 01 A9 FD 43 00 91 F4 03 02 AA F3 03 00 AA 3F 08 00 71 ?? ?? ?? ?? 3F 04 00 71 ?? ?? ?? ?? ?? ?? ?? ??"
+    },
+    {
+      "name": "CProtoBufMsg::InitFromPacket",
+      "func_addr_this_build": "0x11781b4",
+      "aob_hex": "FF 03 01 D1 F6 57 01 A9 F4 4F 02 A9 FD 7B 03 A9 FD C3 00 91 F3 03 01 AA F4 03 00 AA ?? ?? ?? ?? 08 99 42 F9 08 01 40 B9 ?? ?? ?? ?? ?? ?? ?? ?? 00 4C 1E 91",
+      "anchor": {
+        "kind": "nth_ref",
+        "value": "CProtoBufMsg::InitFromPacket( IMsgNetPacket )",
+        "n": 1
+      }
+    },
+    {
+      "name": "IClientUser::BLoggedOn",
+      "func_addr_this_build": "0x8d0e7c",
+      "aob_hex": "C8 20 80 52 A8 B0 AC 72 A8 C3 1E B8",
+      "match_offset": 88
+    },
+    {
+      "name": "IClientUser::BIsSubscribedApp",
+      "func_addr_this_build": "0x8e2698",
+      "aob_hex": "48 68 87 52 28 BA B1 72 A8 C3 1E B8",
+      "match_offset": 140
+    },
+    {
+      "name": "IClientApps::BGetDLCDataByIndex",
+      "func_addr_this_build": "0x91d44c",
+      "aob_hex": "FF 83 02 D1 FA 67 05 A9 F8 5F 06 A9 F6 57 07 A9 F4 4F 08 A9 FD 7B 09 A9 FD 43 02 91 F4 03 06 AA F5 03 05 AA F6 03 04 AA F7 03 03 AA F8 03 02 AA F9 03 01 AA F3 03 00 AA E0 23 00 91 01 08 80 52 02 04 80 52 03 00 80 52 ?? ?? ?? ?? E0 23 00 91 21 00 80 52 ?? ?? ?? ?? E0 23 00 91 01 01 80 52",
+      "anchor": {
+        "kind": "nth_ref",
+        "value": "BGetDLCDataByIndex",
+        "n": 4
+      }
+    },
+    {
+      "name": "IClientAppManager::IsAppDlcInstalled",
+      "func_addr_this_build": "0x91f0a0",
+      "aob_hex": "FF 03 02 D1 F6 57 05 A9 F4 4F 06 A9 FD 7B 07 A9 FD C3 01 91 F4 03 02 AA F5 03 01 AA F3 03 00 AA E0 23 00 91 01 08 80 52 02 04 80 52 03 00 80 52 ?? ?? ?? ?? E0 23 00 91 21 00 80 52 ?? ?? ?? ?? E0 23 00 91 21 02 80 52 ?? ?? ?? ?? 68 0A 40 B9 A8 C3 1D B8 E0 23 00 91 A1 93 00 D1 82 00 80 52 ?? ?? ?? ?? A8 8E 91 52",
+      "anchor": {
+        "kind": "nth_ref",
+        "value": "IsAppDlcInstalled",
+        "n": 5
+      }
+    },
+    {
+      "name": "IClientUtils::GetAppID",
+      "func_addr_this_build": "0x90c558",
+      "aob_hex": "48 D8 8F 52 08 2C A1 72 A8 C3 1E B8",
+      "match_offset": 88
+    },
+    {
+      "name": "IClientUser::IsUserSubscribedAppInTicket",
+      "func_addr_this_build": "0x8dc5dc",
+      "aob_hex": "E8 0F 83 52 A8 68 B2 72 A8 C3 1D B8 E0 23 00 91 A1 93 00 D1 82 00 80 52",
+      "match_offset": 100
+    },
+    {
+      "name": "CPackageInfo::BParseFromBuffer",
+      "func_addr_this_build": "0x5bb814",
+      "aob_hex": "FF 83 05 D1 FC 6F 10 A9 FA 67 11 A9 F8 5F 12 A9 F6 57 13 A9 F4 4F 14 A9 FD 7B 15 A9 FD 43 05 91 F6 03 03 AA F5 03 02 AA F8 03 01 AA"
+    },
+    {
+      "name": "CPackageInfoCache::ClearMap",
+      "func_addr_this_build": "0x5bb2c8",
+      "aob_hex": "FD 7B BF A9 FD 03 00 91 ?? ?? ?? ?? FD 7B C1 A8 ?? ?? ?? ?? F6 57 BD A9 F4 4F 01 A9 FD 7B 02 A9 FD 83 00 91 F3 03 00 AA 08 24 40 B9 1F 05 00 71 ?? ?? ?? ?? 14 00 80 D2 15 00 80 D2 69 1A 40 F9 2A 69 74 B8 BF 02 0A EB ?? ?? ?? ?? 29 01 14 8B 20 0D 40 F9 ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? 68 26 40 B9"
+    },
+    {
+      "name": "CPackageInfoCache::ReadFromDisk",
+      "func_addr_this_build": "0x5bb59c",
+      "aob_hex": "F8 5F BC A9 F6 57 01 A9 F4 4F 02 A9 FD 7B 03 A9 FD C3 00 91 FF 03 12 D1 F3 03 00 AA ?? ?? ?? ?? 08 F9 47 F9 08 01 40 F9 A8 83 1C F8 ?? ?? ?? ?? 08 99 42 F9 08 01 40 B9 ?? ?? ?? ?? ?? ?? ?? ?? 00 48 2D 91 E2 23 01 91 81 00 80 52 ?? ?? ?? ?? ?? ?? ?? ?? 00 00 80 D2 E0 27 00 F9 ?? ?? ?? ??"
+    },
+    {
+      "name": "CSteamEngine::SwitchAppPackageCache__anchor_for_engine_global_ref__inferred",
+      "func_addr_this_build": "0x5b370c",
+      "aob_hex": "F8 5F BC A9 F6 57 01 A9 F4 4F 02 A9 FD 7B 03 A9 FD C3 00 91 F3 03 00 AA E0 03 01 AA ?? ?? ?? ??"
+    },
+    {
+      "name": "CUserAppManager::MarkAppDirty",
+      "func_addr_this_build": "0xa92bec",
+      "aob_hex": "FF 43 01 D1 F8 5F 01 A9 F6 57 02 A9 F4 4F 03 A9 FD 7B 04 A9 FD 03 01 91 F3 03 00 AA E1 0F 00 B9 E2 2F 00 39"
+    },
+    {
+      "name": "CUserAppManager::RecomputeSubscribedApps",
+      "func_addr_this_build": "0xa9356c",
+      "aob_hex": "FF 83 02 D1 FC 6F 04 A9 FA 67 05 A9 F8 5F 06 A9 F6 57 07 A9 F4 4F 08 A9 FD 7B 09 A9 FD 43 02 91 F3 03 00 AA ?? ?? ?? ?? 08 99 42 F9"
+    },
+    {
+      "name": "CUserAppManager::EmitAppLicensesChanged",
+      "func_addr_this_build": "0xa92d00",
+      "aob_hex": "FC 6F BA A9 FA 67 01 A9 F8 5F 02 A9 F6 57 03 A9 F4 4F 04 A9 FD 7B 05 A9 FD 43 01 91 FF C3 06 D1 ?? ?? ?? ?? 08 F9 47 F9 08 01 40 F9 A8 83 19 F8"
+    },
+    {
+      "name": "CAPIJob::sendAndRecv",
+      "func_addr_this_build": "0x61b780",
+      "aob_hex": "FF C3 00 D1 F4 4F 01 A9 FD 7B 02 A9 FD 83 00 91 F3 03 05 AA F4 03 04 AA FF 07 00 F9 E4 23 00 91 ?? ?? ?? ?? ?? ?? ?? ?? E1 07 40 F9 88 02 40 F9 08 09 40 F9 E0 03 14 AA"
+    },
+    {
+      "name": "CAPIJobRequestUserStats::Run.worker",
+      "func_addr_this_build": "0x7a69b0",
+      "aob_hex": "FC 6F BA A9 FA 67 01 A9 F8 5F 02 A9 F6 57 03 A9 F4 4F 04 A9 FD 7B 05 A9 FD 43 01 91 FF C3 10 D1 F3 03 00 AA ?? ?? ?? ?? 08 F9 47 F9 08 01 40 F9 A8 03 1A F8 08 B0 40 39",
+      "anchor": {
+        "kind": "string",
+        "value": "Player.GetUserStats#1"
+      }
+    },
+    {
+      "name": "CAPIJobRequestUserStats::Run.worker.transport_ret",
+      "func_addr_this_build": "0xb495d4",
+      "aob_hex": "?? ?? ?? ?? 75 DA 40 F9 E8 73 40 B9 ?? ?? ?? ??",
+      "anchor": {
+        "kind": "insn_after_string",
+        "value": "Player.GetUserStats#1",
+        "n": 1
+      }
+    },
+    {
+      "name": "IClientUser::__ipc_server_dispatch",
+      "func_addr_this_build": "0x829d24",
+      "aob_hex": "FF 03 05 D1 FA 67 0F A9 F8 5F 10 A9 F6 57 11 A9 F4 4F 12 A9 FD 7B 13 A9 FD C3 04 91 F6 03 03 AA F3 03 02 AA F5 03 01 AA F4 03 00 AA A1 13 01 D1 E0 03 15 AA 82 00 80 52 ?? ?? ?? ?? B7 C3 5B B8 E8 1F 8E 52 C8 6A A1 72"
+    },
+    {
+      "name": "CUtlBuffer::GetBytes",
+      "func_addr_this_build": "0xda574",
+      "aob_hex": "FD 7B BF A9 FD 03 00 91 08 18 40 B9 09 10 40 B9 08 01 09 4B"
+    },
+    {
+      "name": "CUtlBuffer::PutBytes",
+      "func_addr_this_build": "0x10d26c0",
+      "aob_hex": "F6 57 BD A9 F4 4F 01 A9 FD 7B 02 A9 FD 83 00 91 5F 04 00 71 ?? ?? ?? ??"
+    },
+    {
+      "name": "CUtlBuffer::PutTag",
+      "func_addr_this_build": "0x10d2f40",
+      "aob_hex": "FF 43 01 D1 F4 4F 03 A9 FD 7B 04 A9 FD 03 01 91 F4 03 01 AA F3 03 00 AA ?? ?? ?? ?? 08 F9 47 F9 08 01 40 F9 A8 83 1E F8 08 7C 40 39 ?? ?? ?? ?? E0 03 13 AA 21 00 80 52"
+    },
+    {
+      "name": "CUser::FindAppOwnershipTicket",
+      "func_addr_this_build": "0xa9ffc4",
+      "aob_hex": "F6 57 BD A9 F4 4F 01 A9 FD 7B 02 A9 FD 83 00 91 FF 03 21 D1 ?? ?? ?? ?? 08 F9 47 F9 08 01 40 F9 A8 83 1D F8 3F 1C 00 71 ?? ?? ?? ?? F4 03 01 AA"
+    },
+    {
+      "name": "CUser::ReadOwnershipStoreEntry",
+      "func_addr_this_build": "0x5ee5d4",
+      "aob_hex": "FC 6F BC A9 F6 57 01 A9 F4 4F 02 A9 FD 7B 03 A9 FD C3 00 91 FF 43 10 D1 F3 03 04 AA F4 03 03 AA F5 03 00 AA ?? ?? ?? ?? 08 F9 47 F9 08 01 40 F9"
+    },
+    {
+      "name": "CUtlBuffer::Ctor",
+      "func_addr_this_build": "0x10d0f9c",
+      "aob_hex": "00 E4 00 6F 00 00 00 AD ?? ?? ?? ?? 08 D1 03 91 08 7C 02 A9 ?? ?? ?? ?? 08 F1 03 91 08 7C 03 A9 C0 03 5F D6 F6 57 BD A9 F4 4F 01 A9 FD 7B 02 A9"
+    },
+    {
+      "name": "CUser::SpawnProcess",
+      "aob_hex": "FC 6F BA A9 FA 67 01 A9 F8 5F 02 A9 F6 57 03 A9 F4 4F 04 A9 FD 7B 05 A9 FD 43 01 91 FF 43 13 D1 F5 03 07 AA F9 03 06 AA E5 1B 00 F9 F7 03 04 AA F8 03 03 AA F3 03 02 AA FB 03 01 AA F4 03 00 AA",
+      "match_offset": 0
+    },
+    {
+      "name": "CUser::BuildSpawnEnvBlock",
+      "aob_hex": "FC 6F BA A9 FA 67 01 A9 F8 5F 02 A9 F6 57 03 A9 F4 4F 04 A9 FD 7B 05 A9 FD 43 01 91 FF 43 14 D1 F8 03 05 AA F6 03 04 AA F3 03 02 AA F4 03 00 AA ?? ?? ?? ?? 08 F9 47 F9 08 01 40 F9 A8 03 1A F8",
+      "match_offset": 0
+    },
+    {
+      "name": "CSteamController::OptedInMask",
+      "aob_hex": "0A 20 56 B9 5F 05 00 31 ?? ?? ?? ?? F6 57 BD A9 F4 4F 01 A9 FD 7B 02 A9 FD 83 00 91 15 24 44 91 08 1C 4B F9 09 11 00 91 4A 7D 40 93 0B 15 0A 8B 6D 11 40 B9 EC 03 08 AA BF 01 01 6B ?? ?? ?? ??",
+      "match_offset": 0
+    },
+    {
+      "name": "IClientUtils::__ipc_server_dispatch",
+      "aob_hex": "FF 43 03 D1 F8 5F 09 A9 F6 57 0A A9 F4 4F 0B A9 FD 7B 0C A9 FD 03 03 91 F6 03 03 AA F3 03 02 AA F5 03 01 AA F4 03 00 AA A1 03 01 D1 E0 03 15 AA 82 00 80 52 ?? ?? ?? ?? B7 03 5C B8 88 F8 9C 52",
+      "match_offset": 0
+    },
+    {
+      "name": "IClientNetworkingSocketsSerialized::__ipc_server_dispatch",
+      "aob_hex": "FF 43 02 D1 F8 5F 05 A9 F6 57 06 A9 F4 4F 07 A9 FD 7B 08 A9 FD 03 02 91 F6 03 03 AA F3 03 02 AA F5 03 01 AA F4 03 00 AA A1 D3 00 D1 E0 03 15 AA 82 00 80 52 ?? ?? ?? ?? B7 C3 5C B8 48 64 8F 52",
+      "match_offset": 0
+    },
+    {
+      "name": "CSteamEngine::SetAppIDForCurrentPipe",
+      "aob_hex": "FF 03 02 D1 FC 6F 02 A9 FA 67 03 A9 F8 5F 04 A9 F6 57 05 A9 F4 4F 06 A9 FD 7B 07 A9 FD C3 01 91 F5 03 02 AA F6 03 01 AA F3 03 00 AA 08 30 41 B9 3F 28 00 71 F4 33 81 1A 09 87 82 52 E8 53 03 29",
+      "match_offset": 0
+    },
+    {
+      "name": "CSteamEngine::PostCallbackToPipe",
+      "aob_hex": "FA 67 BB A9 F8 5F 01 A9 F6 57 02 A9 F4 4F 03 A9 FD 7B 04 A9 FD 03 01 91 F6 03 05 AA F7 03 04 AA F8 03 03 AA F9 03 02 AA F3 03 01 AA F4 03 00 AA ?? ?? ?? ?? F5 03 00 AA ?? ?? ?? ?? E0 03 15 AA E1 03 19 AA E2 03 18 AA E3 03 17 AA E4 03 16 AA ?? ?? ?? ?? ?? ?? ?? ?? E0 03 14 AA E1 03 13 AA ?? ?? ?? ??",
+      "match_offset": 0
+    }
+  ]
+}
