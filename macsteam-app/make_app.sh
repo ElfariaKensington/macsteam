@@ -25,6 +25,14 @@ install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS
 cp "$ICON_SRC" "$APP/Contents/Resources/AppIcon.icns"
 cp -R ".build/release/MacsteamApp_MacsteamApp.bundle" "$APP/Contents/Resources/"
 
+RES_BUNDLE=".build/release/${BIN_NAME}_${BIN_NAME}.bundle"
+if [ -d "$RES_BUNDLE" ]; then
+    rm -rf "$APP/Contents/Resources/$(basename "$RES_BUNDLE")"
+    cp -R "$RES_BUNDLE" "$APP/Contents/Resources/"
+else
+    echo "warning: $RES_BUNDLE missing -- store button script not bundled" >&2
+fi
+
 # Built by the top-level Makefile (make rebuild).
 DYLIB_SRC="../out/macsteam.dylib"
 MS_VERSION=$(sed -n 's/.*MACSTEAM_VERSION[[:space:]]*"\(.*\)".*/\1/p' ../src/version.h)
@@ -57,6 +65,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleVersion</key>         <string>14</string>
     <key>LSMinimumSystemVersion</key>  <string>13.0</string>
     <key>LSApplicationCategoryType</key> <string>public.app-category.utilities</string>
+    <key>NSRemovableVolumesUsageDescription</key> <string>macSteam installs and removes game fixes in game folders on external drives.</string>
+    <key>NSNetworkVolumesUsageDescription</key> <string>macSteam installs and removes game fixes in game folders on network drives.</string>
+    <key>NSDesktopFolderUsageDescription</key> <string>macSteam installs and removes game fixes in game folders you keep on the Desktop.</string>
+    <key>NSDocumentsFolderUsageDescription</key> <string>macSteam installs and removes game fixes in game folders you keep in Documents.</string>
+    <key>NSDownloadsFolderUsageDescription</key> <string>macSteam installs and removes game fixes in game folders you keep in Downloads.</string>
     <key>NSHumanReadableCopyright</key> <string>© 2026 Selectively11</string>
     <key>NSHighResolutionCapable</key> <true/>
     <key>NSAppTransportSecurity</key>

@@ -496,9 +496,10 @@ private final class FixesDetailDocumentView: NSView {
 final class LuaToolsFixDetailViewController: NSViewController {
     private let game: LuaToolsFixGame
     private let detail: LuaToolsFixDetail
-    private let installDir: URL?
+    private var installDir: URL?
     private let store: ConfigStore
     private let onConfigChanged: () -> Void
+    private var activationObserver: NSObjectProtocol?
     private let art = NSImageView()
     private var artTask: Task<Void, Never>?
     private var cards: [LuaToolsFixCardView] = []
@@ -521,6 +522,32 @@ final class LuaToolsFixDetailViewController: NSViewController {
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError() }
+
+    override func viewDidDisappear() {
+        super.viewDidDisappear()
+        if let activationObserver { NotificationCenter.default.removeObserver(activationObserver) }
+        activationObserver = nil
+    }
+
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        guard activationObserver == nil else { return }
+        // The game may be updated, uninstalled or wiped while this window is open; re-read the
+        // folder whenever the user comes back to macSteam so Undo/Install reflect the disk.
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reloadFromDisk() }
+        }
+        reloadFromDisk()
+    }
+
+    private func reloadFromDisk() {
+        guard !isInstalling, let appID = Int(detail.appID) else { return }
+        installDir = SteamLibrary.installDir(appID: appID)
+        cards.forEach { $0.setInstalled(installDir != nil) }
+        refreshAppliedFixes()
+    }
 
     override func loadView() {
         let sheetSize = NSSize(width: 820, height: 640)
@@ -629,7 +656,7 @@ final class LuaToolsFixDetailViewController: NSViewController {
             let card = LuaToolsFixCardView(
                 fix: fix,
                 installed: installDir != nil,
-                applied: appliedFixes[fix.id] != nil,
+                state: cardState(for: fix.id),
                 onManifest: { [weak self] in self?.installManifest(fix: fix) },
                 onFix: { [weak self] in self?.installFix(fix: fix) },
                 onUndo: { [weak self] in self?.undoFix(fix: fix) })
@@ -781,6 +808,13 @@ final class LuaToolsFixDetailViewController: NSViewController {
             return
         }
         guard !isInstalling, let appID = Int(detail.appID) else { return }
+        // Ask macOS for write access first: this surfaces its own prompt where one exists and
+        // saves the download when it would be refused anyway.
+        do { try SteamFixInstaller.ensureWritable(installDir: installDir) } catch {
+            statusLabel.stringValue = error.localizedDescription
+            presentFixError("Couldn’t install fix", error)
+            return
+        }
         isInstalling = true
         cards.forEach { $0.setBusy(true) }
         spinner.startAnimation(nil)
@@ -819,9 +853,22 @@ final class LuaToolsFixDetailViewController: NSViewController {
                     style: .informational)
             } catch {
                 self.statusLabel.stringValue = error.localizedDescription
-                presentAlert("Couldn’t install fix", error.localizedDescription,
-                             style: .warning)
+                self.presentFixError("Couldn’t install fix", error)
             }
+        }
+    }
+
+    private func cardState(for fixID: String) -> LuaToolsFixCardView.State {
+        guard let applied = appliedFixes[fixID] else { return .notApplied }
+        return applied.isDrifted ? .drifted : .applied
+    }
+
+    /// Permission problems get macOS-specific guidance; anything else is shown as is.
+    private func presentFixError(_ title: String, _ error: Error) {
+        if case SteamFixInstallError.permissionDenied(let path) = error {
+            presentFileAccessAlert(path: path)
+        } else {
+            presentAlert(title, error.localizedDescription, style: .warning)
         }
     }
 
@@ -836,7 +883,7 @@ final class LuaToolsFixDetailViewController: NSViewController {
             SteamFixInstaller.appliedFixes(installDir: installDir)
                 .map { ($0.fixID, $0) })
         for card in cards {
-            card.setApplied(appliedFixes[card.fixID] != nil)
+            card.setState(cardState(for: card.fixID))
         }
         undoAllButton?.isHidden = appliedFixes.isEmpty
         undoAllButton?.isEnabled = !appliedFixes.isEmpty && !isInstalling
@@ -847,13 +894,21 @@ final class LuaToolsFixDetailViewController: NSViewController {
             return
         }
         let alert = NSAlert()
-        alert.messageText = "Undo \(fix.title)?"
-        alert.informativeText = "macSteam will restore \(applied.modified) replaced "
-            + "file\(applied.modified == 1 ? "" : "s") and remove \(applied.added) added "
-            + "file\(applied.added == 1 ? "" : "s"). Files changed after the fix was "
-            + "installed are left untouched."
+        if case .drifted(let changed, let missing) = applied.health {
+            alert.messageText = "Remove \(fix.title)?"
+            let touched = changed.count + missing.count
+            alert.informativeText = "\(touched) of this fix's files changed or are missing, "
+                + "probably because the game was updated. macSteam will remove or restore only "
+                + "the files that are still exactly what the fix installed and leave the rest "
+                + "alone. Afterwards you can install the fix again."
+        } else {
+            alert.messageText = "Undo \(fix.title)?"
+            alert.informativeText = "macSteam will restore \(applied.modified) replaced "
+                + "file\(applied.modified == 1 ? "" : "s") and remove \(applied.added) added "
+                + "file\(applied.added == 1 ? "" : "s") from the game folder."
+        }
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Undo")
+        alert.addButton(withTitle: applied.isDrifted ? "Remove" : "Undo")
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
@@ -874,21 +929,29 @@ final class LuaToolsFixDetailViewController: NSViewController {
             do {
                 let target = installDir
                 let fixID = fix.id
+                let safely = applied.isDrifted
                 let result = try await Task.detached {
-                    try SteamFixInstaller.revert(installDir: target, fixID: fixID)
+                    safely
+                        ? try SteamFixInstaller.revertSafely(installDir: target, fixID: fixID)
+                        : try SteamFixInstaller.revert(installDir: target, fixID: fixID)
                 }.value
                 self.refreshAppliedFixes()
                 self.statusLabel.stringValue =
                     "Undid fix · \(result.restored) restored · \(result.removed) removed"
+                let left = result.skipped.isEmpty ? "" : " \(result.skipped.count) changed "
+                    + "file\(result.skipped.count == 1 ? " was" : "s were") left as the game has them."
                 presentAlert(
                     "Fix removed",
                     "\(result.restored) file\(result.restored == 1 ? "" : "s") restored and "
-                    + "\(result.removed) added file\(result.removed == 1 ? "" : "s") removed.",
+                    + "\(result.removed) added file\(result.removed == 1 ? "" : "s") removed." + left,
                     style: .informational)
+            } catch SteamFixInstallError.modifiedSinceApply(let paths) {
+                // Changed between the preflight and now (or the card was stale): offer the safe undo.
+                self.statusLabel.stringValue = SteamFixInstallError.modifiedSinceApply(paths).localizedDescription
+                self.refreshAppliedFixes()
             } catch {
                 self.statusLabel.stringValue = error.localizedDescription
-                presentAlert("Couldn’t undo fix", error.localizedDescription,
-                             style: .warning)
+                self.presentFixError("Couldn’t undo fix", error)
             }
         }
     }
@@ -903,8 +966,8 @@ final class LuaToolsFixDetailViewController: NSViewController {
         alert.messageText = "Undo all installed fixes?"
         alert.informativeText = "macSteam will undo \(fixes.count) fix"
             + (fixes.count == 1 ? "" : "es") + " and restore \(files) file"
-            + (files == 1 ? "" : "s") + ". Files changed after a fix was installed are "
-            + "left untouched."
+            + (files == 1 ? "" : "s") + ". Files that changed after a fix was installed "
+            + "(for example by a game update) are left as the game has them."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Undo All")
         alert.addButton(withTitle: "Cancel")
@@ -941,8 +1004,7 @@ final class LuaToolsFixDetailViewController: NSViewController {
                     style: .informational)
             } catch {
                 self.statusLabel.stringValue = error.localizedDescription
-                presentAlert("Couldn’t undo fixes", error.localizedDescription,
-                             style: .warning)
+                self.presentFixError("Couldn’t undo fixes", error)
             }
         }
     }
@@ -951,11 +1013,13 @@ final class LuaToolsFixDetailViewController: NSViewController {
 @MainActor
 final class LuaToolsFixCardView: NSView {
     private let fix: LuaToolsFix
-    private let installed: Bool
+    enum State { case notApplied, applied, drifted }
+    private var installed: Bool
     private let onManifest: () -> Void
     private let onFix: () -> Void
     private let onUndo: () -> Void
-    private var applied: Bool
+    private var state: State
+    private var driftLabel: NSTextField?
     private var manifestButton: NSButton?
     private var fixButton: NSButton?
     private var undoButton: NSButton?
@@ -964,13 +1028,13 @@ final class LuaToolsFixCardView: NSView {
 
     init(fix: LuaToolsFix,
          installed: Bool,
-         applied: Bool,
+         state: State,
          onManifest: @escaping () -> Void,
          onFix: @escaping () -> Void,
          onUndo: @escaping () -> Void) {
         self.fix = fix
         self.installed = installed
-        self.applied = applied
+        self.state = state
         self.onManifest = onManifest
         self.onFix = onFix
         self.onUndo = onUndo
@@ -1002,7 +1066,17 @@ final class LuaToolsFixCardView: NSView {
         body.isHidden = (fix.description ?? "").isEmpty
         body.translatesAutoresizingMaskIntoConstraints = false
 
-        var views: [NSView] = [title, meta, body]
+        let drift = NSTextField(wrappingLabelWithString:
+            "Some of this fix's files changed since it was installed (a game update?). "
+            + "Reinstall it, or remove what is left.")
+        drift.font = Typography.caption
+        drift.textColor = .systemOrange
+        drift.maximumNumberOfLines = 0
+        drift.isHidden = true
+        drift.translatesAutoresizingMaskIntoConstraints = false
+        driftLabel = drift
+
+        var views: [NSView] = [title, meta, body, drift]
         var actions: [NSView] = []
         if fix.hasManifest {
             let button = NSButton(title: "Manifest", target: self,
@@ -1062,26 +1136,40 @@ final class LuaToolsFixCardView: NSView {
             stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12),
             body.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            drift.widthAnchor.constraint(equalTo: stack.widthAnchor),
             last.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
         updateApplyState()
     }
     required init?(coder: NSCoder) { fatalError() }
 
-    func setApplied(_ applied: Bool) {
-        self.applied = applied
+    func setState(_ state: State) {
+        self.state = state
         updateApplyState()
+    }
+
+    func setInstalled(_ installed: Bool) {
+        self.installed = installed
+        fixButton?.isEnabled = installed
+        fixButton?.toolTip = installed
+            ? "Download this fix's game files and copy them into the installed game folder. "
+                + "Originals are backed up under .macsteam-fix."
+            : "Install this game in Steam first, then reopen this fix."
     }
 
     func setBusy(_ busy: Bool) {
         manifestButton?.isEnabled = !busy
         fixButton?.isEnabled = !busy && installed
-        undoButton?.isEnabled = !busy && applied
+        undoButton?.isEnabled = !busy && state != .notApplied
     }
 
     private func updateApplyState() {
-        fixButton?.isHidden = applied
-        undoButton?.isHidden = !applied
+        // Drifted: Reinstall and Remove are both offered; applied: only Undo; otherwise Install.
+        fixButton?.isHidden = state == .applied
+        fixButton?.title = state == .drifted ? "Reinstall" : "Install Fix"
+        undoButton?.isHidden = state == .notApplied
+        undoButton?.title = state == .drifted ? "Remove" : "Undo"
+        driftLabel?.isHidden = state != .drifted
     }
 
     @objc private func manifestPressed() {

@@ -122,6 +122,15 @@
                 if (reply.error) {
                     fixesRoot.querySelectorAll('button').forEach(b => { b.disabled = wasDisabled.has(b); });
                     status.textContent = reply.error;
+                    if (reply.permission) {
+                        // macOS blocked the write: point the user at the right privacy pane.
+                        const open = actionButton('Open ' + (reply.permissionTitle || 'Privacy Settings'),
+                            () => request('fix-permissions', reply.permission));
+                        open.style.marginLeft = '0';
+                        open.style.display = 'block';
+                        open.style.marginTop = '6px';
+                        status.appendChild(open);
+                    }
                     return;
                 }
                 renderFixes(reply, reply.message);
@@ -132,13 +141,19 @@
                 b.disabled = !!result.manifestInstalled;
                 actions.appendChild(b);
             }
-            if (fix.hasFix && !fix.applied) {
-                const b = actionButton('Install fix', () => run('fix-install'));
+            if (fix.hasFix && (!fix.applied || fix.drifted)) {
+                const b = actionButton(fix.drifted ? 'Reinstall fix' : 'Install fix', () => run('fix-install'));
                 b.disabled = !result.gameInstalled;
                 actions.appendChild(b);
             }
             if (fix.applied) {
-                actions.appendChild(actionButton('Undo fix', () => run('fix-undo')));
+                actions.appendChild(actionButton(fix.drifted ? 'Remove fix' : 'Undo fix', () => run('fix-undo')));
+            }
+            if (fix.drifted) {
+                const note = document.createElement('div');
+                note.textContent = 'Some files changed since install (a game update?).';
+                note.style.cssText = 'color:#e8a54b;font-size:12px;margin-top:2px';
+                info.appendChild(note);
             }
             row.append(info, actions);
             fixesRoot.appendChild(row);
@@ -230,7 +245,12 @@
     new MutationObserver(mount).observe(document, { childList: true, subtree: true });
     window.addEventListener('popstate', mount);
     // Returning from Steam's install dialog (or an uninstall) must update the card.
-    window.addEventListener('focus', () => { if (appID && root?.isConnected && !busy) void refresh(); });
+    window.addEventListener('focus', () => {
+        if (!appID || !root?.isConnected) return;
+        if (!busy) void refresh();
+        // The game may have been updated, uninstalled or wiped while the user was away.
+        if (!fixBusy) void loadFixes();
+    });
     window.navigation?.addEventListener('currententrychange', mount);
     mount();
 })();

@@ -292,6 +292,8 @@ private final class HubcapStorePage {
             switch request.action {
             case "fixes":
                 response = await fixes.list(appID: request.appID)
+            case "fix-permissions":
+                response = fixes.openPrivacyPane(request.fixID ?? "")
             case "fix-manifest", "fix-install", "fix-undo":
                 guard let fixID = request.fixID, !fixID.isEmpty else { return }
                 response = await fixes.perform(request.action, appID: request.appID, fixID: fixID)
@@ -313,6 +315,6 @@ private final class HubcapStorePage {
         let fixID: String?
 
         static let actions: Set<String> = ["status", "add", "fixes", "fix-manifest",
-                                           "fix-install", "fix-undo"]
+                                           "fix-install", "fix-undo", "fix-permissions"]
     }
 }

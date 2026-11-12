@@ -12,7 +12,8 @@ scratch/
 .scratch/
 signatures_generated.json
 out/
-tests/
+/tests/
+lua-tools-auth.json
 
 xcuserdata/
 *.xcuserstate

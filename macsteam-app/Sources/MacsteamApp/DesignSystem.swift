@@ -186,6 +186,59 @@ func presentAppManagementAlert() {
     }
 }
 
+/// Which macOS privacy pane unblocks writing into a game folder.
+enum FileAccessGuidance {
+    enum Pane: String {
+        case filesAndFolders = "Privacy_FilesAndFolders"
+        case fullDiskAccess = "Privacy_AllFiles"
+        case appBundles = "Privacy_AppBundles"
+
+        var title: String {
+            switch self {
+            case .filesAndFolders: return "Files & Folders"
+            case .fullDiskAccess: return "Full Disk Access"
+            case .appBundles: return "App Management"
+            }
+        }
+        var url: URL {
+            URL(string: "x-apple.systempreferences:com.apple.preference.security?\(rawValue)")!
+        }
+    }
+
+    static func pane(forPath path: String, home: String = NSHomeDirectory()) -> Pane {
+        if path.contains(".app/") || path.hasSuffix(".app") { return .appBundles }
+        if path.hasPrefix("/Volumes/") { return .filesAndFolders }
+        for folder in ["Desktop", "Documents", "Downloads"] where path.hasPrefix("\(home)/\(folder)") {
+            return .filesAndFolders
+        }
+        return .fullDiskAccess
+    }
+
+    static func explanation(forPath path: String) -> String {
+        let pane = pane(forPath: path)
+        return "macOS is blocking macSteam from changing files in:\n\(path)\n\n"
+            + "Allow macSteam under Privacy & Security \u{203A} \(pane.title), then try again."
+            + (pane == .fullDiskAccess ? "" : " If the game folder is somewhere else, Full Disk Access also works.")
+    }
+}
+
+@MainActor
+func presentFileAccessAlert(path: String) {
+    let pane = FileAccessGuidance.pane(forPath: path)
+    let a = NSAlert()
+    a.messageText = "macSteam needs permission to change this game"
+    a.informativeText = FileAccessGuidance.explanation(forPath: path)
+    a.alertStyle = .warning
+    a.addButton(withTitle: "Open \(pane.title)")
+    if pane != .fullDiskAccess { a.addButton(withTitle: "Open Full Disk Access") }
+    a.addButton(withTitle: "Cancel")
+    switch a.runModal() {
+    case .alertFirstButtonReturn: NSWorkspace.shared.open(pane.url)
+    case .alertSecondButtonReturn where pane != .fullDiskAccess: NSWorkspace.shared.open(FileAccessGuidance.Pane.fullDiskAccess.url)
+    default: break
+    }
+}
+
 @MainActor
 func makeScrollView(horizontalScroller: Bool = false) -> NSScrollView {
     let scroll = NSScrollView()
