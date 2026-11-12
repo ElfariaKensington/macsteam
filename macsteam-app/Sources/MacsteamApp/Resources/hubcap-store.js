@@ -31,6 +31,9 @@
     }
     function render() {
         if (!button) return;
+        // Already installed: nothing to add or install, so the card is not shown at all.
+        root.style.display = state === 'installed' ? 'none' : '';
+        if (state === 'installed') return;
         message.hidden = !message.textContent;
         titlePrefix.textContent = state === 'ready' ? 'Ready to install with ' :
             state === 'checking' ? 'Checking Steam library for ' : 'Add to library with ';
@@ -47,7 +50,7 @@
             state = 'add';
             message.textContent = result.error;
         } else {
-            state = result.ready ? 'ready' : 'add';
+            state = result.installed ? 'installed' : result.ready ? 'ready' : 'add';
             message.textContent = '';
         }
         render();
@@ -127,6 +130,8 @@
     }
     new MutationObserver(mount).observe(document, { childList: true, subtree: true });
     window.addEventListener('popstate', mount);
+    // Returning from Steam's install dialog (or an uninstall) must update the card.
+    window.addEventListener('focus', () => { if (appID && root?.isConnected && !busy) void refresh(); });
     window.navigation?.addEventListener('currententrychange', mount);
     mount();
 })();

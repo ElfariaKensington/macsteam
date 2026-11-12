@@ -31,10 +31,15 @@ final class HubcapStoreInstaller {
         self.activate = activate
     }
 
-    func status(appID: Int) -> [String: Any] {
+    func status(appID: Int, steamRoot: URL = Paths.steamRoot) -> [String: Any] {
         store.load()
         let configured = store.config.apps.contains(appID)
-        return ["configured": configured, "ready": configured && SteamLibraryActivation.isActive(appID)]
+        return [
+            "configured": configured,
+            "ready": configured && SteamLibraryActivation.isActive(appID),
+            // An installed game must never be offered "Add to library" or "Install".
+            "installed": SteamInstallState.isFullyInstalled(appID: appID, steamRoot: steamRoot),
+        ]
     }
 
     func install(appID: Int) async throws {
@@ -201,5 +206,41 @@ enum SteamLibraryActivation {
                isActive(appID) { return }
         }
         throw HubcapStoreError(message: "Lua and manifests are saved, but Steam has not confirmed activation. Launch Steam with this macSteam build and try again; downloads will be reused.")
+    }
+}
+
+/// Whether Steam has the game fully installed, read from its appmanifest files.
+enum SteamInstallState {
+    private static let pathRe = try! NSRegularExpression(pattern: #""path"\s+"([^"]+)""#)
+    private static let flagsRe = try! NSRegularExpression(pattern: #""StateFlags"\s+"(\d+)""#)
+    private static let fullyInstalled = 4   // EAppState.FullyInstalled
+
+    static func isFullyInstalled(appID: Int, steamRoot: URL = Paths.steamRoot,
+                                 fm: FileManager = .default) -> Bool {
+        guard appID > 0 else { return false }
+        for root in libraryRoots(steamRoot: steamRoot) {
+            let manifest = root.appendingPathComponent("steamapps/appmanifest_\(appID).acf")
+            guard let text = try? String(contentsOf: manifest, encoding: .utf8) else { continue }
+            let ns = text as NSString
+            guard let match = flagsRe.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)),
+                  let flags = Int(ns.substring(with: match.range(at: 1))) else { continue }
+            if flags & fullyInstalled != 0 { return true }
+        }
+        return false
+    }
+
+    static func libraryRoots(steamRoot: URL) -> [URL] {
+        var roots = [steamRoot]
+        var seen = Set([steamRoot.standardizedFileURL.path])
+        for vdf in ["steamapps/libraryfolders.vdf", "config/libraryfolders.vdf"] {
+            guard let text = try? String(contentsOf: steamRoot.appendingPathComponent(vdf), encoding: .utf8) else { continue }
+            let ns = text as NSString
+            for match in pathRe.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+                let raw = ns.substring(with: match.range(at: 1)).replacingOccurrences(of: "\\\\", with: "/")
+                let url = URL(fileURLWithPath: raw, isDirectory: true).standardizedFileURL
+                if seen.insert(url.path).inserted { roots.append(url) }
+            }
+        }
+        return roots
     }
 }

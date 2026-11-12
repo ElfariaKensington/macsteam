@@ -80,6 +80,40 @@ final class HubcapStoreTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: absent.path))
     }
 
+    func testInstalledStateComesFromAppManifestsInEveryLibrary() throws {
+        let root = try scratch()
+        let steam = root.appendingPathComponent("Steam")
+        let other = root.appendingPathComponent("Games")
+        for dir in [steam, other] {
+            try FileManager.default.createDirectory(at: dir.appendingPathComponent("steamapps"), withIntermediateDirectories: true)
+        }
+        try "\"libraryfolders\" { \"1\" { \"path\" \"\(other.path)\" } }".write(
+            to: steam.appendingPathComponent("steamapps/libraryfolders.vdf"), atomically: true, encoding: .utf8)
+        func manifest(_ library: URL, _ id: Int, flags: Int) throws {
+            try "\"AppState\" { \"appid\" \"\(id)\" \"StateFlags\" \"\(flags)\" }".write(
+                to: library.appendingPathComponent("steamapps/appmanifest_\(id).acf"), atomically: true, encoding: .utf8)
+        }
+        try manifest(steam, 620, flags: 4)        // fully installed
+        try manifest(other, 400, flags: 4)        // installed on another library
+        try manifest(steam, 730, flags: 1026)     // downloading / update required, not installed
+        XCTAssertTrue(SteamInstallState.isFullyInstalled(appID: 620, steamRoot: steam))
+        XCTAssertTrue(SteamInstallState.isFullyInstalled(appID: 400, steamRoot: steam))
+        XCTAssertFalse(SteamInstallState.isFullyInstalled(appID: 730, steamRoot: steam))
+        XCTAssertFalse(SteamInstallState.isFullyInstalled(appID: 999, steamRoot: steam))
+        XCTAssertFalse(SteamInstallState.isFullyInstalled(appID: 0, steamRoot: steam))
+    }
+
+    @MainActor
+    func testStatusReportsInstalledSoTheStoreCardCanHide() throws {
+        let root = try scratch()
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("steamapps"), withIntermediateDirectories: true)
+        try "\"AppState\" { \"StateFlags\" \"4\" }".write(
+            to: root.appendingPathComponent("steamapps/appmanifest_620.acf"), atomically: true, encoding: .utf8)
+        let installer = HubcapStoreInstaller(client: client { _ in (200, Data()) })
+        XCTAssertEqual(installer.status(appID: 620, steamRoot: root)["installed"] as? Bool, true)
+        XCTAssertEqual(installer.status(appID: 621, steamRoot: root)["installed"] as? Bool, false)
+    }
+
     func testStoreURLsAreScopedToSteamAppPages() {
         XCTAssertEqual(HubcapStoreBridge.storeAppID("https://store.steampowered.com/app/620/Portal_2/"), 620)
         for value in ["http://store.steampowered.com/app/620/", "https://store.steampowered.com.evil/app/620/",

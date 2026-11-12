@@ -80,12 +80,19 @@ final class HubcapStoreBridge {
                 }
             } catch {
                 missed += 1
-                // Exit when Steam closes, with enough grace for its startup/relaunch.
-                if missed >= 60 { break }
+                // Exit when Steam closes, with enough grace for its startup/relaunch. A slow
+                // or restarting debug port is not a reason to quit while Steam is still running.
+                if missed >= 60 {
+                    if Self.steamIsRunning() { missed = 0 } else { break }
+                }
             }
             try? await Task.sleep(for: .seconds(2))
         }
         pages.values.forEach { $0.close() }
+    }
+
+    nonisolated static func steamIsRunning() -> Bool {
+        Subprocess.run("/usr/bin/pgrep", ["-x", "steam_osx"]).code == 0
     }
 
     static func isStoreURL(_ value: String) -> Bool {
