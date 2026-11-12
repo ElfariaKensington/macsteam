@@ -9,10 +9,15 @@ class Element {
     constructor(tag) { this.tag = tag; this.children = []; this.listeners = {}; this.style = {}; this.isConnected = false; }
     append(...kids) { kids.forEach(k => { this.children.push(k); k.parent = this; k.isConnected = this.isConnected; }); }
     appendChild(kid) { this.append(kid); return kid; }
+    after(node) { const at = this.parent.children.indexOf(this); this.parent.children.splice(at + 1, 0, node); node.parent = this.parent; node.isConnected = this.isConnected; }
     prepend(kid) { this.children.unshift(kid); kid.parent = this; kid.isConnected = this.isConnected; }
     remove() { this.isConnected = false; if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1); }
     setAttribute(key, value) { this[key] = value; }
     addEventListener(name, fn) { this.listeners[name] = fn; }
+    querySelector(selector) {
+        const matches = c => selector.startsWith('.') ? c.className?.split(' ').includes(selector.slice(1).split(':')[0]) : c.tag === selector;
+        return this.children.find(matches) || this.children.map(c => c.querySelector(selector)).find(Boolean);
+    }
     querySelectorAll(tag) { const out = []; const walk = n => { if (n.tag === tag) out.push(n); (n.children || []).forEach(walk); }; walk(this); return out; }
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -24,7 +29,9 @@ function page() {
     const document = { querySelector: () => host, createElement: t => new Element(t),
         createTextNode: t => { const n = new Element('#text'); n.textContent = t; return n; } };
     const context = vm.createContext({ window, document, location: new URL('https://store.steampowered.com/app/620/Portal_2/'),
-        setTimeout, clearTimeout, setInterval: () => 0 });
+        setTimeout, clearTimeout, setInterval: () => 0,
+        // Trees that also carry the Add/Install card observe the document.
+        MutationObserver: class { observe() {} } });
     vm.runInContext(source, context);
     const answer = async (action, reply) => {
         const i = sent.findIndex(r => r.action === action);
