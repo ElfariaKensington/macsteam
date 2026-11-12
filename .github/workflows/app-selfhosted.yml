@@ -23,6 +23,12 @@ jobs:
           xcodebuild -version
           swift --version
 
+      - name: Steam compatibility tests
+        # Fails the build when Valve's current Steam client breaks a macSteam patch
+        # (signatures, Cloud-error / shared-library UI patches, Store cards).
+        if: hashFiles('scripts/tests/steam_compat.py') != ''
+        run: python3 scripts/tests/steam_compat.py
+
       - name: Build dylib
         run: make -j$(sysctl -n hw.ncpu)
 
