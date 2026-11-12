@@ -127,7 +127,15 @@ $(ANCHOR_PROBE_BIN): $(ANCHOR_PROBE_SRC) src/resolver/anchor.c src/core/macho.c 
 	$(CC) -std=c17 -Wall -Wextra -Isrc -o $@ $(ANCHOR_PROBE_SRC) src/util/log.c src/util/file.c
 	@echo "==> Built probe: $@"
 
-test:
+.PHONY: test-license
+test-license: $(OUT_DIR)/tests/license_probe
+	@$(OUT_DIR)/tests/license_probe
+
+$(OUT_DIR)/tests/license_probe: tests/license_probe.c src/feats/license.c src/feats/license.h src/config/config.h src/constants.h src/steam_types.h
+	@mkdir -p $(dir $@)
+	$(CC) -std=c17 -Wall -Wextra -Isrc -o $@ tests/license_probe.c src/feats/license.c
+
+test: test-license
 	@if [ ! -d macsteam-app/Tests ]; then echo "==> No local tests, skipping."; exit 0; fi; \
 	 $(MAKE) $(PROBE_BIN) $(STATS_PROBE_BIN) $(AOB_PROBE_BIN) $(ANCHOR_PROBE_BIN); \
 	 echo "==> Running C stats-resolver probe..."; \
