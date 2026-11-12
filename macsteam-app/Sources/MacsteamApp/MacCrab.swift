@@ -5,6 +5,9 @@ enum MacCrab {
 
     static let supportedVersion = "1788652215"
 
+    /// Builds macSteam has signatures for. `supportedVersion` is the one the downgrade pins to.
+    static let compatibleVersions: Set<String> = [supportedVersion, "1794424036"]
+
     static let localServerURL = "http://localhost:1666"
 
     enum Status: Equatable {
@@ -21,7 +24,7 @@ enum MacCrab {
             return .steamMissing
         }
         guard let version = detectedVersion() else { return .unknown }
-        return version == supportedVersion ? .supported : .unsupported(version)
+        return compatibleVersions.contains(version) ? .supported : .unsupported(version)
     }
 
     static func detectedVersion() -> String? {
