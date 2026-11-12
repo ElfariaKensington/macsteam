@@ -3,7 +3,7 @@ import Foundation
 
 enum MacCrab {
 
-    static let supportedVersion = "1788652215"
+    static let supportedVersion = PinnedManifest.version
 
     static let localServerURL = "http://localhost:1666"
 
@@ -26,10 +26,11 @@ enum MacCrab {
 
     static func detectedVersion() -> String? {
         let fm = FileManager.default
+        // Steam prefers the signed variants over the plain manifest, so they say what is really installed.
         let names = [
-            "steam_client_osx.manifest",
             "steam_client_signed-2_osx.manifest",
             "steam_client_signed_osx.manifest",
+            "steam_client_osx.manifest",
         ]
         for name in names {
             let url = Paths.packageDir.appendingPathComponent(name)
@@ -96,6 +97,9 @@ enum MacCrab {
         ]
         // Exit code unreliable (-exitsteam gives 254); manifest version is the real signal.
         let result = runOuter(args)
+        // The updater relaunches the client when it finishes; a running client then
+        // updates itself to the newest build. Never leave it running.
+        killSteam()
 
         progress?("Verifying build")
         guard let version = detectedVersion() else {
@@ -109,6 +113,7 @@ enum MacCrab {
                                 + "supported \(supportedVersion).")
         }
 
+        killSteam()
         progress?("Done")
     }
 
