@@ -262,8 +262,12 @@ static void sx_init(void) {
         }
     }
 
-    remove_crash_sentinel();
+    // Patch sp.js with the shared-library rows FIRST. Other sp.js patchers (Cloud errors) key
+    // their recovery copy by the hash of the file they leave behind; this one is a fixed-size,
+    // no-op-once-applied edit, so running it before them keeps those hashes stable across
+    // launches. scripts/tests/ui_patch_order.py enforces the order.
     sx_librarysharing_patch_installed_js();
+    remove_crash_sentinel();
     sx_whatsnew_patch_installed_css();
 
     SX_LOG("macsteam loaded into %s (pid %d)", getprogname(), getpid());
