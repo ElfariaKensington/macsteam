@@ -64,6 +64,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleVersion</key>         <string>13</string>
     <key>LSMinimumSystemVersion</key>  <string>13.0</string>
     <key>LSApplicationCategoryType</key> <string>public.app-category.utilities</string>
+    <key>NSRemovableVolumesUsageDescription</key> <string>macSteam installs and removes game fixes in game folders on external drives.</string>
+    <key>NSNetworkVolumesUsageDescription</key> <string>macSteam installs and removes game fixes in game folders on network drives.</string>
+    <key>NSDesktopFolderUsageDescription</key> <string>macSteam installs and removes game fixes in game folders you keep on the Desktop.</string>
+    <key>NSDocumentsFolderUsageDescription</key> <string>macSteam installs and removes game fixes in game folders you keep in Documents.</string>
+    <key>NSDownloadsFolderUsageDescription</key> <string>macSteam installs and removes game fixes in game folders you keep in Downloads.</string>
     <key>NSHumanReadableCopyright</key> <string>© 2026 Selectively11</string>
     <key>NSHighResolutionCapable</key> <true/>
     <key>NSAppTransportSecurity</key>

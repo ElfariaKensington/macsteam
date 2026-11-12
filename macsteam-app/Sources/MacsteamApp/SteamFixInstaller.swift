@@ -10,6 +10,7 @@ enum SteamFixInstallError: LocalizedError {
     case notApplied
     case missingBackup(String)
     case modifiedSinceApply([String])
+    case permissionDenied(String)
 
     var errorDescription: String? {
         switch self {
@@ -25,6 +26,9 @@ enum SteamFixInstallError: LocalizedError {
             return "That fix has no macSteam backup record."
         case .missingBackup(let path):
             return "The backup for \(path) is missing. macSteam left the game untouched."
+        case .permissionDenied(let path):
+            return "macOS blocked macSteam from changing the game folder (\(path)). "
+                + "Allow macSteam in Privacy & Security, then try again."
         case .modifiedSinceApply(let paths):
             let sample = paths.prefix(3).joined(separator: ", ")
             let more = paths.count > 3 ? " (+\(paths.count - 3) more)" : ""
@@ -44,6 +48,18 @@ struct SteamFixRevertResult {
     let restored: Int
     let removed: Int
     let fixes: Int
+    /// Files left alone because they no longer match what the fix wrote (e.g. a game update).
+    var skipped: [String] = []
+}
+
+/// How a recorded fix compares with the game folder right now.
+enum SteamFixHealth: Equatable, Sendable {
+    /// Every recorded file is still exactly what the fix wrote.
+    case intact
+    /// Some recorded files were changed (game update, manual edit) or deleted.
+    case drifted(changed: [String], missing: [String])
+    /// None of the recorded files exist any more: nothing left to undo.
+    case gone
 }
 
 struct SteamFixRecord: Codable, Sendable {
@@ -73,19 +89,53 @@ struct SteamAppliedFix: Sendable, Identifiable {
     let added: Int
     let modified: Int
     let backupDir: URL
+    var health: SteamFixHealth = .intact
 
     var id: String { fixID }
     var fileCount: Int { added + modified }
+    var isDrifted: Bool { if case .drifted = health { return true } else { return false } }
 }
 
 enum SteamFixInstaller {
     private static let backupName = ".macsteam-fix"
+
+    // MARK: - Permissions
+
+    /// True for the errors macOS raises when privacy protection (Files and Folders, Removable
+    /// Volumes, Full Disk Access, App Management) or file permissions block a write.
+    static func isPermissionError(_ error: Error) -> Bool {
+        let ns = error as NSError
+        if ns.domain == NSCocoaErrorDomain,
+           [NSFileWriteNoPermissionError, NSFileReadNoPermissionError].contains(ns.code) { return true }
+        if ns.domain == NSPOSIXErrorDomain, [Int(EPERM), Int(EACCES)].contains(ns.code) { return true }
+        if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? Error, underlying as NSError !== ns {
+            return isPermissionError(underlying)
+        }
+        return false
+    }
+
+    /// Fails early, before anything is downloaded, when macOS will not let us write into the
+    /// game folder. Touching the folder also makes macOS show its own permission prompt where
+    /// one exists (removable and network volumes, Desktop/Documents/Downloads).
+    static func ensureWritable(installDir: URL, fm: FileManager = .default) throws {
+        let probe = installDir.appendingPathComponent(".macsteam-write-probe-\(UUID().uuidString)")
+        do {
+            try Data().write(to: probe)
+            try fm.removeItem(at: probe)
+        } catch {
+            if isPermissionError(error) { throw SteamFixInstallError.permissionDenied(installDir.path) }
+            throw SteamFixInstallError.failed(error.localizedDescription)
+        }
+    }
+
+    // MARK: - Install
 
     static func apply(zipData: Data,
                       appID: Int,
                       fixID: String,
                       installDir: URL) throws -> SteamFixInstallResult {
         let fm = FileManager.default
+        try ensureWritable(installDir: installDir, fm: fm)
         let work = fm.temporaryDirectory
             .appendingPathComponent("macsteam-fix-\(UUID().uuidString)", isDirectory: true)
         try Paths.ensureDir(work)
@@ -106,48 +156,72 @@ enum SteamFixInstaller {
             .appendingPathComponent(backupName, isDirectory: true)
             .appendingPathComponent(key, isDirectory: true)
 
+        // Reinstalling over an earlier install (for example after a game update replaced some
+        // of the fix's files): files already in the record keep their original action and
+        // backup, so Undo still returns the game to its pre-fix state.
+        let previous = loadRecord(backupRoot: backupRoot)
+        let previousByPath = Dictionary(
+            (previous?.files ?? []).map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
+
         let entries = try sourceFiles(in: extract)
-        var applied: [(destination: URL, backup: URL?, existed: Bool)] = []
+        let snapshotRoot = work.appendingPathComponent("rollback", isDirectory: true)
+        var touched: [(destination: URL, snapshot: URL?)] = []
         var added = 0
         var modified = 0
         var record: [SteamFixRecord.Entry] = []
+        var written = Set<String>()
+
+        func rollback() {
+            for item in touched.reversed() {
+                try? fm.removeItem(at: item.destination)
+                if let snapshot = item.snapshot { try? fm.copyItem(at: snapshot, to: item.destination) }
+            }
+        }
 
         do {
             for source in entries {
                 let relative = source.relative
                 let destination = installDir.appendingPathComponent(relative)
                 let existed = fm.fileExists(atPath: destination.path)
+                let earlier = previousByPath[relative]
                 var backup: URL?
-                if existed {
+                var action = existed ? "modified" : "added"
+                if let earlier {
+                    // Keep the first install's view of this file.
+                    action = earlier.action
+                    if let recorded = earlier.backup, !recorded.isEmpty { backup = URL(fileURLWithPath: recorded) }
+                } else if existed {
                     let bak = backupRoot.appendingPathComponent(relative + ".bak")
                     try Paths.ensureDir(bak.deletingLastPathComponent())
-                    if !fm.fileExists(atPath: bak.path) {
-                        try fm.copyItem(at: destination, to: bak)
-                    }
+                    if !fm.fileExists(atPath: bak.path) { try fm.copyItem(at: destination, to: bak) }
                     backup = bak
                 }
+                var snapshot: URL?
+                if existed {
+                    let snap = snapshotRoot.appendingPathComponent(relative)
+                    try Paths.ensureDir(snap.deletingLastPathComponent())
+                    try fm.copyItem(at: destination, to: snap)
+                    snapshot = snap
+                }
+                touched.append((destination, snapshot))
                 try Paths.ensureDir(destination.deletingLastPathComponent())
                 if existed { try fm.removeItem(at: destination) }
                 try fm.copyItem(at: source.url, to: destination)
-                applied.append((destination, backup, existed))
-                if existed { modified += 1 } else { added += 1 }
+                if action == "modified" { modified += 1 } else { added += 1 }
+                written.insert(relative)
                 record.append(SteamFixRecord.Entry(
-                    path: relative,
-                    action: existed ? "modified" : "added",
-                    backup: backup?.path,
+                    path: relative, action: action, backup: backup?.path,
                     hashAfter: fileHash(destination)))
             }
         } catch {
-            // Put the game folder back the way it was on a partial failure.
-            for item in applied.reversed() {
-                if let backup = item.backup {
-                    try? fm.removeItem(at: item.destination)
-                    try? fm.copyItem(at: backup, to: item.destination)
-                } else {
-                    try? fm.removeItem(at: item.destination)
-                }
-            }
+            rollback()
+            if isPermissionError(error) { throw SteamFixInstallError.permissionDenied(installDir.path) }
             throw SteamFixInstallError.failed(error.localizedDescription)
+        }
+        // Files an earlier install recorded that this ZIP no longer contains stay undoable.
+        for entry in previous?.files ?? [] where !written.contains(entry.path) {
+            record.append(entry)
+            if entry.action == "modified" { modified += 1 } else { added += 1 }
         }
 
         let recordObject = SteamFixRecord(
@@ -164,14 +238,8 @@ enum SteamFixInstaller {
                            options: .atomic)
         } catch {
             // Without the record the fix cannot be undone; put the game back.
-            for item in applied.reversed() {
-                if let backup = item.backup {
-                    try? fm.removeItem(at: item.destination)
-                    try? fm.copyItem(at: backup, to: item.destination)
-                } else {
-                    try? fm.removeItem(at: item.destination)
-                }
-            }
+            rollback()
+            if isPermissionError(error) { throw SteamFixInstallError.permissionDenied(installDir.path) }
             throw SteamFixInstallError.failed(
                 "Could not write the undo record: \(error.localizedDescription)")
         }
@@ -180,6 +248,36 @@ enum SteamFixInstaller {
                                      backupDir: backupRoot)
     }
 
+    // MARK: - State
+
+    private static func loadRecord(backupRoot: URL) -> SteamFixRecord? {
+        guard let data = try? Data(contentsOf: backupRoot.appendingPathComponent("record.json")),
+              let record = try? JSONDecoder().decode(SteamFixRecord.self, from: data) else { return nil }
+        return record
+    }
+
+    /// Compares a record with the game folder: which recorded files still match what the fix
+    /// wrote, which changed, which are gone.
+    static func health(of record: SteamFixRecord, installDir: URL,
+                       fm: FileManager = .default) -> SteamFixHealth {
+        var changed: [String] = []
+        var missing: [String] = []
+        var present = 0
+        for entry in record.files {
+            let url = installDir.appendingPathComponent(entry.path)
+            guard fm.fileExists(atPath: url.path) else { missing.append(entry.path); continue }
+            present += 1
+            if let expected = entry.hashAfter, !expected.isEmpty, fileHash(url) != expected {
+                changed.append(entry.path)
+            }
+        }
+        if present == 0 { return .gone }
+        return changed.isEmpty && missing.isEmpty ? .intact : .drifted(changed: changed, missing: missing)
+    }
+
+    /// Fixes that are really present in the game folder. A fix whose files were all deleted
+    /// (the game was removed or wiped by hand) is dropped, with its record and backups, so no
+    /// stale Undo is offered. A fix with some changed or missing files is returned as drifted.
     static func appliedFixes(installDir: URL,
                              fm: FileManager = .default) -> [SteamAppliedFix] {
         let root = installDir.appendingPathComponent(backupName, isDirectory: true)
@@ -190,31 +288,40 @@ enum SteamFixInstaller {
         for dir in dirs {
             guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
             else { continue }
-            let recordURL = dir.appendingPathComponent("record.json")
-            guard let data = try? Data(contentsOf: recordURL),
-                  let record = try? JSONDecoder().decode(SteamFixRecord.self, from: data)
-            else { continue }
+            guard let record = loadRecord(backupRoot: dir) else { continue }
+            let health = health(of: record, installDir: installDir, fm: fm)
+            if health == .gone {
+                try? fm.removeItem(at: dir)
+                continue
+            }
             out.append(SteamAppliedFix(
                 fixID: record.fixID,
                 appliedAt: ISO8601DateFormatter().date(from: record.appliedAt),
                 added: record.files.filter { $0.action == "added" }.count,
                 modified: record.files.filter { $0.action == "modified" }.count,
-                backupDir: dir))
+                backupDir: dir,
+                health: health))
+        }
+        if let rest = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil,
+                                                  options: [.skipsHiddenFiles]), rest.isEmpty {
+            try? fm.removeItem(at: root)
         }
         return out.sorted {
             ($0.appliedAt ?? .distantPast) > ($1.appliedAt ?? .distantPast)
         }
     }
 
+    // MARK: - Undo
+
+    /// Strict undo: refuses when any recorded file changed after the fix was installed, unless
+    /// `force` is set. Use `revertSafely` for a drifted fix.
     static func revert(installDir: URL, fixID: String, force: Bool = false,
                        fm: FileManager = .default) throws -> SteamFixRevertResult {
         let backupRoot = installDir
             .appendingPathComponent(backupName, isDirectory: true)
             .appendingPathComponent(safeKey(fixID), isDirectory: true)
-        let recordURL = backupRoot.appendingPathComponent("record.json")
-        guard let data = try? Data(contentsOf: recordURL),
-              let record = try? JSONDecoder().decode(SteamFixRecord.self, from: data)
-        else { throw SteamFixInstallError.notApplied }
+        guard let record = loadRecord(backupRoot: backupRoot) else { throw SteamFixInstallError.notApplied }
+        try ensureWritable(installDir: installDir, fm: fm)
 
         // Preflight everything before touching the game folder.
         var changed: [String] = []
@@ -235,35 +342,87 @@ enum SteamFixInstaller {
 
         var restored = 0
         var removed = 0
-        for entry in record.files.reversed() {
-            let destination = try destination(for: entry.path, installDir: installDir)
-            switch entry.action {
-            case "modified":
-                let backup = try backupURL(entry, backupRoot: backupRoot, fm: fm)
-                try Paths.ensureDir(destination.deletingLastPathComponent())
-                if fm.fileExists(atPath: destination.path) {
-                    try fm.removeItem(at: destination)
+        do {
+            for entry in record.files.reversed() {
+                let destination = try destination(for: entry.path, installDir: installDir)
+                switch entry.action {
+                case "modified":
+                    let backup = try backupURL(entry, backupRoot: backupRoot, fm: fm)
+                    try Paths.ensureDir(destination.deletingLastPathComponent())
+                    if fm.fileExists(atPath: destination.path) {
+                        try fm.removeItem(at: destination)
+                    }
+                    try fm.copyItem(at: backup, to: destination)
+                    restored += 1
+                case "added":
+                    if fm.fileExists(atPath: destination.path) {
+                        try fm.removeItem(at: destination)
+                        removed += 1
+                    }
+                default:
+                    break
                 }
-                try fm.copyItem(at: backup, to: destination)
-                restored += 1
-            case "added":
-                if fm.fileExists(atPath: destination.path) {
-                    try fm.removeItem(at: destination)
-                    removed += 1
-                }
-            default:
-                break
             }
+        } catch {
+            if isPermissionError(error) { throw SteamFixInstallError.permissionDenied(installDir.path) }
+            throw error
         }
-        try? fm.removeItem(at: backupRoot)
-        if let parent = try? fm.contentsOfDirectory(
-            at: installDir.appendingPathComponent(backupName, isDirectory: true),
-            includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]),
-            parent.isEmpty {
-            try? fm.removeItem(at: installDir.appendingPathComponent(backupName,
-                                                                     isDirectory: true))
-        }
+        cleanUp(backupRoot: backupRoot, installDir: installDir, fm: fm)
         return SteamFixRevertResult(restored: restored, removed: removed, fixes: 1)
+    }
+
+    /// Undo for a fix whose files changed or disappeared (a game update overwrote some of them,
+    /// the user deleted some). Only files that are still exactly what the fix wrote are
+    /// restored/removed; anything else is the game's own and is left alone. Never throws for
+    /// drift, and always clears the fix record, so the fix can be installed again.
+    static func revertSafely(installDir: URL, fixID: String,
+                             fm: FileManager = .default) throws -> SteamFixRevertResult {
+        let backupRoot = installDir
+            .appendingPathComponent(backupName, isDirectory: true)
+            .appendingPathComponent(safeKey(fixID), isDirectory: true)
+        guard let record = loadRecord(backupRoot: backupRoot) else { throw SteamFixInstallError.notApplied }
+        try ensureWritable(installDir: installDir, fm: fm)
+        var restored = 0
+        var removed = 0
+        var skipped: [String] = []
+        do {
+            for entry in record.files.reversed() {
+                let destination = try destination(for: entry.path, installDir: installDir)
+                let exists = fm.fileExists(atPath: destination.path)
+                let ours = exists && (entry.hashAfter?.isEmpty != false || fileHash(destination) == entry.hashAfter)
+                if exists && !ours { skipped.append(entry.path); continue }
+                switch entry.action {
+                case "modified":
+                    // Missing original backup: nothing we can restore, leave the file as is.
+                    guard let backup = try? backupURL(entry, backupRoot: backupRoot, fm: fm) else {
+                        if exists { skipped.append(entry.path) }
+                        continue
+                    }
+                    if !exists { continue }   // the user deleted it; do not resurrect it
+                    try fm.removeItem(at: destination)
+                    try fm.copyItem(at: backup, to: destination)
+                    restored += 1
+                case "added":
+                    if exists { try fm.removeItem(at: destination); removed += 1 }
+                default:
+                    break
+                }
+            }
+        } catch {
+            if isPermissionError(error) { throw SteamFixInstallError.permissionDenied(installDir.path) }
+            throw error
+        }
+        cleanUp(backupRoot: backupRoot, installDir: installDir, fm: fm)
+        return SteamFixRevertResult(restored: restored, removed: removed, fixes: 1, skipped: skipped)
+    }
+
+    private static func cleanUp(backupRoot: URL, installDir: URL, fm: FileManager) {
+        try? fm.removeItem(at: backupRoot)
+        let root = installDir.appendingPathComponent(backupName, isDirectory: true)
+        if let rest = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil,
+                                                  options: [.skipsHiddenFiles]), rest.isEmpty {
+            try? fm.removeItem(at: root)
+        }
     }
 
     static func revertAll(installDir: URL, force: Bool = false,
@@ -271,15 +430,19 @@ enum SteamFixInstaller {
         var restored = 0
         var removed = 0
         var fixes = 0
+        var skipped: [String] = []
         for applied in appliedFixes(installDir: installDir, fm: fm) {
-            let result = try revert(installDir: installDir, fixID: applied.fixID,
-                                    force: force, fm: fm)
+            // A drifted fix cannot be undone strictly; undo what still belongs to it.
+            let result = (applied.isDrifted || force)
+                ? try revertSafely(installDir: installDir, fixID: applied.fixID, fm: fm)
+                : try revert(installDir: installDir, fixID: applied.fixID, force: false, fm: fm)
             restored += result.restored
             removed += result.removed
+            skipped += result.skipped
             fixes += 1
         }
         if fixes == 0 { throw SteamFixInstallError.notApplied }
-        return SteamFixRevertResult(restored: restored, removed: removed, fixes: fixes)
+        return SteamFixRevertResult(restored: restored, removed: removed, fixes: fixes, skipped: skipped)
     }
 
     private struct SourceFile {

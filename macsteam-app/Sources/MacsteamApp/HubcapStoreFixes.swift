@@ -17,7 +17,9 @@ final class HubcapStoreFixes {
         store.load()
         let manifestInstalled = store.config.apps.contains(appID)
         let installDir = SteamLibrary.installDir(appID: appID)
-        let applied = Set(installDir.map { SteamFixInstaller.appliedFixes(installDir: $0).map(\.fixID) } ?? [])
+        let appliedByID = Dictionary(
+            (installDir.map { SteamFixInstaller.appliedFixes(installDir: $0) } ?? []).map { ($0.fixID, $0) },
+            uniquingKeysWith: { first, _ in first })
         do {
             let detail = try await LuaToolsFixesClient.shared.fixes(appID: String(appID))
             let fixes: [[String: Any]] = detail.fixes.map { fix in
@@ -27,7 +29,9 @@ final class HubcapStoreFixes {
                     "description": fix.description ?? "",
                     "hasManifest": fix.hasManifest,
                     "hasFix": fix.hasFix,
-                    "applied": applied.contains(fix.id),
+                    "applied": appliedByID[fix.id] != nil,
+                    // Some of the fix's files changed or vanished (game update): offer Reinstall/Remove.
+                    "drifted": appliedByID[fix.id]?.isDrifted ?? false,
                 ]
             }
             return ["fixes": fixes, "gameInstalled": installDir != nil,
@@ -38,6 +42,25 @@ final class HubcapStoreFixes {
         } catch {
             return ["error": error.localizedDescription]
         }
+    }
+
+    /// An error reply; permission problems also tell the page which privacy pane to offer.
+    static func errorReply(_ error: Error) -> [String: Any] {
+        var reply: [String: Any] = ["error": error.localizedDescription]
+        if case SteamFixInstallError.permissionDenied(let path) = error {
+            let pane = FileAccessGuidance.pane(forPath: path)
+            reply["permission"] = pane.rawValue
+            reply["permissionTitle"] = pane.title
+            reply["error"] = FileAccessGuidance.explanation(forPath: path)
+        }
+        return reply
+    }
+
+    /// Opens the macOS privacy pane named by the page (only the panes we know).
+    func openPrivacyPane(_ raw: String) -> [String: Any] {
+        guard let pane = FileAccessGuidance.Pane(rawValue: raw) else { return ["error": "Unknown settings pane."] }
+        NSWorkspace.shared.open(pane.url)
+        return ["opened": true]
     }
 
     /// Runs one fix action and returns a message for the page.
@@ -57,7 +80,7 @@ final class HubcapStoreFixes {
             response["message"] = message
             return response
         } catch {
-            return ["error": error.localizedDescription]
+            return Self.errorReply(error)
         }
     }
 
@@ -82,6 +105,8 @@ final class HubcapStoreFixes {
         guard let installDir = SteamLibrary.installDir(appID: appID) else {
             throw SteamFixInstallError.noInstallDir
         }
+        // Check (and trigger macOS's own prompt for) write access before downloading anything.
+        try SteamFixInstaller.ensureWritable(installDir: installDir)
         try await ensureSignedIn()
         let data = try await LuaToolsFixesClient.shared.downloadFix(fixID: fixID)
         let result = try await Task.detached {
@@ -95,7 +120,19 @@ final class HubcapStoreFixes {
         guard let installDir = SteamLibrary.installDir(appID: appID) else {
             throw SteamFixInstallError.noInstallDir
         }
-        let result = try SteamFixInstaller.revert(installDir: installDir, fixID: fixID)
-        return "Fix undone · \(result.restored) restored · \(result.removed) removed"
+        let drifted = SteamFixInstaller.appliedFixes(installDir: installDir)
+            .first { $0.fixID == fixID }?.isDrifted ?? false
+        let result: SteamFixRevertResult
+        do {
+            result = drifted
+                ? try SteamFixInstaller.revertSafely(installDir: installDir, fixID: fixID)
+                : try SteamFixInstaller.revert(installDir: installDir, fixID: fixID)
+        } catch SteamFixInstallError.modifiedSinceApply {
+            // Changed after the page last looked: undo what is still the fix's, leave the rest.
+            result = try SteamFixInstaller.revertSafely(installDir: installDir, fixID: fixID)
+        }
+        let left = result.skipped.isEmpty ? "" : " · \(result.skipped.count) changed file"
+            + (result.skipped.count == 1 ? "" : "s") + " left as the game has them"
+        return "Fix undone · \(result.restored) restored · \(result.removed) removed" + left
     }
 }

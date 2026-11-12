@@ -104,6 +104,15 @@
                 if (reply.error) {
                     fixesRoot.querySelectorAll('button').forEach(b => { b.disabled = wasDisabled.has(b); });
                     status.textContent = reply.error;
+                    if (reply.permission) {
+                        // macOS blocked the write: point the user at the right privacy pane.
+                        const open = actionButton('Open ' + (reply.permissionTitle || 'Privacy Settings'),
+                            () => request('fix-permissions', reply.permission));
+                        open.style.marginLeft = '0';
+                        open.style.display = 'block';
+                        open.style.marginTop = '6px';
+                        status.appendChild(open);
+                    }
                     return;
                 }
                 renderFixes(reply, reply.message);
@@ -114,13 +123,19 @@
                 b.disabled = !!result.manifestInstalled;
                 actions.appendChild(b);
             }
-            if (fix.hasFix && !fix.applied) {
-                const b = actionButton('Install fix', () => run('fix-install'));
+            if (fix.hasFix && (!fix.applied || fix.drifted)) {
+                const b = actionButton(fix.drifted ? 'Reinstall fix' : 'Install fix', () => run('fix-install'));
                 b.disabled = !result.gameInstalled;
                 actions.appendChild(b);
             }
             if (fix.applied) {
-                actions.appendChild(actionButton('Undo fix', () => run('fix-undo')));
+                actions.appendChild(actionButton(fix.drifted ? 'Remove fix' : 'Undo fix', () => run('fix-undo')));
+            }
+            if (fix.drifted) {
+                const note = document.createElement('div');
+                note.textContent = 'Some files changed since install (a game update?).';
+                note.style.cssText = 'color:#e8a54b;font-size:12px;margin-top:2px';
+                info.appendChild(note);
             }
             row.append(info, actions);
             fixesRoot.appendChild(row);
@@ -166,6 +181,8 @@
         }
     };
 
+    // The game may have been updated, uninstalled or wiped while the user was away.
+    window.addEventListener('focus', () => { if (appID && !fixBusy) void loadFixes(); });
     window.addEventListener('popstate', () => setTimeout(mount, 50));
     window.navigation?.addEventListener('currententrychange', () => setTimeout(mount, 50));
     setInterval(mount, 1000);

@@ -433,6 +433,8 @@ final class HubcapStoreBridge {
             response = ["restarting": true]
         case "fixes":
             response = await fixes?.list(appID: appID) ?? ["error": "macSteam is still starting."]
+        case "fix-permissions":
+            response = fixes?.openPrivacyPane(fixID ?? "") ?? ["error": "macSteam is still starting."]
         case "fix-manifest", "fix-install", "fix-undo":
             guard let fixID, !fixID.isEmpty, let fixes else { return }
             response = await fixes.perform(action, appID: appID, fixID: fixID)
