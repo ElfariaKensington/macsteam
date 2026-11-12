@@ -8,8 +8,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-static int g_license_injected = 0;
-
 static uint8_t g_empty_country_str[24] = {0};
 
 #define BODY_RPF_CURSIZE   0x20
@@ -49,6 +47,14 @@ static void *clone_injected_license(const void *template_lic, uint32_t pkg) {
     return new_lic;
 }
 
+static int has_license(void **elements, int count, uint32_t pkg) {
+    for (int i = 0; i < count; i++) {
+        const License_t *lic = elements[i];
+        if (lic && lic->packageId == pkg) return 1;
+    }
+    return 0;
+}
+
 static void inject_licenses_into_body(void *body) {
     sx_config_t *g_cfg = sx_config_current;
     if (!g_cfg || g_cfg->pkg_count == 0) return;
@@ -75,7 +81,12 @@ static void inject_licenses_into_body(void *body) {
         return;
     }
 
-    int to_inject = g_cfg->pkg_count;
+    int to_inject = 0;
+    for (int i = 0; i < g_cfg->pkg_count; i++) {
+        if (!has_license(elements, cur_size, (uint32_t)g_cfg->package_ids[i]))
+            to_inject++;
+    }
+    if (!to_inject) return;
 
     int new_total = cur_size + to_inject;
 
@@ -105,6 +116,7 @@ static void inject_licenses_into_body(void *body) {
     int injected = 0;
     for (int i = 0; i < g_cfg->pkg_count; i++) {
         uint32_t pkg = (uint32_t)g_cfg->package_ids[i];
+        if (has_license(elements, cur_size + injected, pkg)) continue;
 
         void *new_lic = clone_injected_license(template_lic, pkg);
         if (!new_lic) {
@@ -137,9 +149,6 @@ void sx_license_inject_from_packet(CProtoBufMsg_t *msg) {
     if (emsg != EMSG_CLIENT_LICENSE_LIST)
         return;
 
-    if (g_license_injected)
-        return;
-
     void *body = msg->body;
     if (!body) {
         SX_WARN("InitFromPacket: EMsg 780 but body is NULL");
@@ -149,16 +158,14 @@ void sx_license_inject_from_packet(CProtoBufMsg_t *msg) {
     SX_LOG("InitFromPacket: intercepted EMsg 780 (ClientLicenseList), body=%p", body);
 
     inject_licenses_into_body(body);
-    g_license_injected = 1;
 }
 
 void sx_license_handle_list(void *body) {
     sx_config_t *g_cfg = sx_config_current;
 
-    if (body && g_cfg && g_cfg->pkg_count > 0 && !g_license_injected) {
+    if (body && g_cfg && g_cfg->pkg_count > 0) {
         SX_LOG("HandleLicenseList: injecting %d configured package(s) into genuine body",
                g_cfg->pkg_count);
         inject_licenses_into_body(body);
-        g_license_injected = 1;
     }
 }
