@@ -228,13 +228,13 @@ final class InstallViewController: NSViewController {
     }
 
     private func runInstall(dylib: URL, pinFirst: Bool) {
-        runBusy(verb: "Installing") {
+        runBusy(verb: "Installing") { progress in
             switch SteamInstaller.status() {
             case .installed, .outdated:
                 try SteamInstaller.install(sourceDylib: dylib)
             default:
-                try MacCrab.ensurePristineBundle()
-                if pinFirst { try MacCrab.pinToSupported() }
+                try MacCrab.ensurePristineBundle(progress: progress)
+                if pinFirst { try MacCrab.pinToSupported(progress: progress) }
                 try SteamInstaller.install(sourceDylib: dylib)
             }
         }
@@ -249,12 +249,12 @@ final class InstallViewController: NSViewController {
         alert.addButton(withTitle: "Uninstall")
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        runBusy(verb: "Uninstalling") { try MacCrab.uninstallToStock() }
+        runBusy(verb: "Uninstalling") { progress in try MacCrab.uninstallToStock(progress: progress) }
     }
 
     @objc private func toggleUpdateBlock() {
         guard SteamInstaller.updateBlockEnabled() else {
-            runBusy { try SteamInstaller.enableUpdateBlock() }
+            runBusy { _ in try SteamInstaller.enableUpdateBlock() }
             return
         }
         let alert = NSAlert()
@@ -266,14 +266,15 @@ final class InstallViewController: NSViewController {
         alert.addButton(withTitle: "Continue")
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        runBusy { try SteamInstaller.disableUpdateBlock() }
+        runBusy { _ in try SteamInstaller.disableUpdateBlock() }
     }
 
     @objc private func openSteam() {
         NSWorkspace.shared.open(Paths.steamApp)
     }
 
-    private func runBusy(verb: String = "Working", _ work: @escaping @Sendable () throws -> Void) {
+    private func runBusy(verb: String = "Working",
+                         _ work: @escaping @Sendable (@escaping @Sendable (String) -> Void) throws -> Void) {
         statusGlyph.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath",
                                     accessibilityDescription: nil)
         statusGlyph.contentTintColor = .secondaryLabelColor
@@ -285,6 +286,10 @@ final class InstallViewController: NSViewController {
             uninstallButton.isEnabled = !busy
             updateBlockButton.isEnabled = !busy
             openButton.isEnabled = !busy
-        }, refresh: { [self] in refresh() }, work: work)
+        }, refresh: { [self] in refresh() }, work: { [weak self] in
+            try work { message in
+                DispatchQueue.main.async { self?.detailLabel.stringValue = message }
+            }
+        })
     }
 }
