@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Regression check: python3 scripts/tests/cloud_errors.py /path/to/vanilla/sp.js"""
+"""Regression check for the Cloud error patcher against Valve's shipped sp.js.
+
+    python3 scripts/tests/cloud_errors.py                     # downloads the live Steam bundle
+    python3 scripts/tests/cloud_errors.py /path/to/vanilla/sp.js
+
+Fails (non-zero exit) when a Steam update changes the UI so the patch no longer applies.
+"""
 import json
 import os
 from pathlib import Path
@@ -9,7 +15,13 @@ import sys
 import tempfile
 
 repo = Path(__file__).resolve().parents[2]
-original = Path(sys.argv[1]).read_bytes()
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+if len(sys.argv) > 1:
+    original = Path(sys.argv[1]).read_bytes()
+else:
+    import steam_bundle
+    print('Steam client build', steam_bundle.build())
+    original = Path(steam_bundle.sp_js()).read_bytes()
 source = (repo / 'src/hooks/cloud_errors_legacy.h').read_text()
 
 with tempfile.TemporaryDirectory(prefix='macsteam-cloud-test-') as tmp:
@@ -50,86 +62,97 @@ int main(void) { sx_clouderrors_patch_installed_js(); return 0; }
     legacy_pair = re.search(r'\{ ("(?:[^"\\]|\\.)*"), ("(?:[^"\\]|\\.)*") \}', source)
     old = json.loads(legacy_pair[1]).encode()
     marker = json.loads(legacy_pair[2]).encode().ljust(len(old), b' ')
-    assert original.count(old) == 1
-    legacy = original
-    for a, b in re.findall(r'\{ ("(?:[^"\\]|\\.)*"), ("(?:[^"\\]|\\.)*") \}', source):
-        a, b = json.loads(a).encode(), json.loads(b).encode()
-        assert legacy.count(a) == 1
-        legacy = legacy.replace(a, b.ljust(len(a), b' '))
-    for enabled in [True, False]:
-        target.write_bytes(legacy)
-        assert run(enabled) == (hidden if enabled else original)
+    if original.count(old) == 1:  # only bundles from before semantic detection need the migration
+        legacy = original
+        for a, b in re.findall(r'\{ ("(?:[^"\\]|\\.)*"), ("(?:[^"\\]|\\.)*") \}', source):
+            a, b = json.loads(a).encode(), json.loads(b).encode()
+            assert legacy.count(a) == 1
+            legacy = legacy.replace(a, b.ljust(len(a), b' '))
+        for enabled in [True, False]:
+            target.write_bytes(legacy)
+            assert run(enabled) == (hidden if enabled else original)
 
-    def component(text, start, end):
-        begin = text.index(start)
-        return text[begin:text.index(end, begin)]
-
-    vanilla = original.decode()
-    patched = hidden.decode()
-    ze_start = 'function Ze(Bt){return'
-    # Other modules use the same minified name: anchor on the Cloud component.
-    vanilla_ze = component(vanilla, ze_start + '!Bt.details.bCloudEnabledForApp', 'function de(Bt)')
-    patched_ze = component(patched, 'function Ze(Bt){if(Bt.details.eCloudStatus', 'function de(Bt)')
-    re_start = 'function re(se){if(se.is_invalid_os_type)'
-    re_end = ':v().Uninstalled}'
-
-    def sidebar(text):
-        begin = text.index(re_start)
-        return text[begin:text.index(re_end, begin) + len(re_end)]
-
-    launch = component(patched, 'ShowCloudIssueDialog(', 'ShowBorrowDialog(').strip()
-    data = [vanilla_ze, patched_ze, sidebar(vanilla), sidebar(patched), launch]
+    old_shape = 'function Ze(Bt){return!Bt.details.bCloudEnabledForApp' in original.decode() and 'function re(se){if(se.is_invalid_os_type)' in original.decode()
+    hidden_text = hidden.decode()
+    # Structural checks that hold for any bundle the semantic patcher accepts.
+    assert not re.search(r'case\s+[\w$.]+:return\s+[\w$]+\(\)\.(CloudError|CloudOutOfDate);', hidden_text), 'sidebar Cloud colors must be removed'
+    assert re.search(r'ShowCloudIssueDialog\([^)]*\)\{if\([\w$]+==="cloudconflict"\|\|[\w$]+==="syncfailed"\)[\w$]+\("IgnoreCloud"\)', hidden_text), 'launch dialog must continue without prompting'
     for name in ['Cloud Sync Failure', 'Cloud Sync Conflict']:
-        pos = patched.index('strTest:"' + name + '"')
-        record = patched[patched.rfind(']:{', 0, pos):pos]
-        assert 'fnTray:null' in record and 'showToast:!1' in record and 'playSound:!1' in record
-    node = root / 'render-test.js'
-    node.write_text('const sources=' + json.dumps(data) + ';\n' + r'''
-const assert = require('assert');
-const codes = ['in','bp','Kh','Am','os','Wq','b6','A1','hr','hN','c7','js','Gm','Fi'];
-const enums = Object.fromEntries(codes.map(k => [k,k]));
-const L = {Y_: enums}, D = {Ul: enums};
-const e = {jsxs:(type,props)=>({type,props}), jsx:(type,props)=>({type,props})};
-const V = ()=>({PlayBarCloudStatusContainer:'cloud'});
-const de = 'cloud-child', ht = status => ({placeholder:status});
-function cloud(src) { return Function('L','e','V','de','ht','return ('+src+')')(L,e,V,de,ht); }
-const before = cloud(sources[0]), after = cloud(sources[1]);
-const details = {bCloudEnabledForApp:true,bCloudEnabledForAccount:true,bHasAnyLocalContent:true};
-for (const status of ['in','bp','Kh','Am']) {
-    const props={details:{...details,eCloudStatus:status}};
-    assert(before(props));
-    assert.strictEqual(after(props),null,'Cloud wrapper must disappear, including sizing placeholders');
-}
-for (const status of ['os','Wq','b6','A1']) {
-    const props={details:{...details,eCloudStatus:status}};
-    assert.deepStrictEqual(after(props),before(props),'Healthy/syncing layout must remain identical');
-}
-for (const flag of Object.keys(details)) {
-    assert.strictEqual(after({details:{...details,[flag]:false,eCloudStatus:'os'}}),null);
-}
-const classes = new Proxy({}, {get:(_,k)=>k}), v=()=>classes;
-const normal = Function('D','v','return ('+sources[2]+')')(D,v);
-const fixed = Function('D','v','return ('+sources[3]+')')(D,v);
-for (const installed of [false,true]) for (const local of [false,true]) {
-    const item={installed,BIsSelectedClientLocal:()=>local};
-    for (const status of ['hN','c7']) {
-        assert.strictEqual(fixed({...item,display_status:status}),normal({...item,display_status:'hr'}),
-                           'Cloud errors must use the normal title color');
+        pos = hidden_text.index('strTest:"' + name + '"')
+        record = hidden_text[hidden_text.rfind(']:{', 0, pos):pos]
+        assert 'fnTray:null' in record and 'showToast:!1' in record and 'playSound:!1' in record, name
+    assert hidden_text.count('return null;') > original.decode().count('return null;'), 'Cloud play-bar column must collapse on errors'
+    if old_shape:  # exact render-function checks written against the original minified names
+        def component(text, start, end):
+            begin = text.index(start)
+            return text[begin:text.index(end, begin)]
+
+        vanilla = original.decode()
+        patched = hidden.decode()
+        ze_start = 'function Ze(Bt){return'
+        # Other modules use the same minified name: anchor on the Cloud component.
+        vanilla_ze = component(vanilla, ze_start + '!Bt.details.bCloudEnabledForApp', 'function de(Bt)')
+        patched_ze = component(patched, 'function Ze(Bt){if(Bt.details.eCloudStatus', 'function de(Bt)')
+        re_start = 'function re(se){if(se.is_invalid_os_type)'
+        re_end = ':v().Uninstalled}'
+
+        def sidebar(text):
+            begin = text.index(re_start)
+            return text[begin:text.index(re_end, begin) + len(re_end)]
+
+        launch = component(patched, 'ShowCloudIssueDialog(', 'ShowBorrowDialog(').strip()
+        data = [vanilla_ze, patched_ze, sidebar(vanilla), sidebar(patched), launch]
+        for name in ['Cloud Sync Failure', 'Cloud Sync Conflict']:
+            pos = patched.index('strTest:"' + name + '"')
+            record = patched[patched.rfind(']:{', 0, pos):pos]
+            assert 'fnTray:null' in record and 'showToast:!1' in record and 'playSound:!1' in record
+        node = root / 'render-test.js'
+        node.write_text('const sources=' + json.dumps(data) + ';\n' + r'''
+    const assert = require('assert');
+    const codes = ['in','bp','Kh','Am','os','Wq','b6','A1','hr','hN','c7','js','Gm','Fi'];
+    const enums = Object.fromEntries(codes.map(k => [k,k]));
+    const L = {Y_: enums}, D = {Ul: enums};
+    const e = {jsxs:(type,props)=>({type,props}), jsx:(type,props)=>({type,props})};
+    const V = ()=>({PlayBarCloudStatusContainer:'cloud'});
+    const de = 'cloud-child', ht = status => ({placeholder:status});
+    function cloud(src) { return Function('L','e','V','de','ht','return ('+src+')')(L,e,V,de,ht); }
+    const before = cloud(sources[0]), after = cloud(sources[1]);
+    const details = {bCloudEnabledForApp:true,bCloudEnabledForAccount:true,bHasAnyLocalContent:true};
+    for (const status of ['in','bp','Kh','Am']) {
+        const props={details:{...details,eCloudStatus:status}};
+        assert(before(props));
+        assert.strictEqual(after(props),null,'Cloud wrapper must disappear, including sizing placeholders');
     }
-    for (const status of ['hr','js','Gm','Fi']) {
-        assert.strictEqual(fixed({...item,display_status:status}),normal({...item,display_status:status}));
+    for (const status of ['os','Wq','b6','A1']) {
+        const props={details:{...details,eCloudStatus:status}};
+        assert.deepStrictEqual(after(props),before(props),'Healthy/syncing layout must remain identical');
     }
-}
-const handler = Function('return ({'+sources[4]+'})')();
-for (const [issue, expected] of [['syncfailed','IgnoreCloud'],['cloudconflict','IgnoreCloud'],
-                                ['pendingcloudsessions','IgnorePendingCloudSessions'],['unknown','unknown']]) {
-    const calls=[];
-    handler.ShowCloudIssueDialog(123, issue, ()=>{throw Error('Unexpected cancel');}, value=>calls.push(value));
-    assert.deepStrictEqual(calls,[expected]);
-}
-console.log('PASS: Cloud column collapses; healthy layout unchanged; normal sidebar colors; launch callbacks.');
-''')
-    subprocess.run(['node', str(node)], check=True)
+    for (const flag of Object.keys(details)) {
+        assert.strictEqual(after({details:{...details,[flag]:false,eCloudStatus:'os'}}),null);
+    }
+    const classes = new Proxy({}, {get:(_,k)=>k}), v=()=>classes;
+    const normal = Function('D','v','return ('+sources[2]+')')(D,v);
+    const fixed = Function('D','v','return ('+sources[3]+')')(D,v);
+    for (const installed of [false,true]) for (const local of [false,true]) {
+        const item={installed,BIsSelectedClientLocal:()=>local};
+        for (const status of ['hN','c7']) {
+            assert.strictEqual(fixed({...item,display_status:status}),normal({...item,display_status:'hr'}),
+                               'Cloud errors must use the normal title color');
+        }
+        for (const status of ['hr','js','Gm','Fi']) {
+            assert.strictEqual(fixed({...item,display_status:status}),normal({...item,display_status:status}));
+        }
+    }
+    const handler = Function('return ({'+sources[4]+'})')();
+    for (const [issue, expected] of [['syncfailed','IgnoreCloud'],['cloudconflict','IgnoreCloud'],
+                                    ['pendingcloudsessions','IgnorePendingCloudSessions'],['unknown','unknown']]) {
+        const calls=[];
+        handler.ShowCloudIssueDialog(123, issue, ()=>{throw Error('Unexpected cancel');}, value=>calls.push(value));
+        assert.deepStrictEqual(calls,[expected]);
+    }
+    console.log('PASS: Cloud column collapses; healthy layout unchanged; normal sidebar colors; launch callbacks.');
+    ''')
+        subprocess.run(['node', str(node)], check=True)
     # Simulate a Steam rebuild: change local identifiers and CSS hashes. Existing
     # backups from the previous build must never restore over this new version.
     variant = original.decode()
