@@ -1,0 +1,45 @@
+name: Build (self-hosted)
+# Same build as app.yml, on your own Mac. The runner needs the labels
+# self-hosted, macOS, ARM64 and Xcode (swift + clang) installed.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: build-selfhosted-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          clean: true
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Build dylib
+        run: make -j$(sysctl -n hw.ncpu)
+
+      - name: Build config app
+        working-directory: macsteam-app
+        run: ./make_app.sh
+
+      - name: Package app
+        run: |
+          rm -f macSteam-Config.zip
+          ditto -c -k --keepParent "macsteam-app/macSteam Config.app" macSteam-Config.zip
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macSteam-Config-${{ github.sha }}
+          path: |
+            macSteam-Config.zip
+            out/macsteam.dylib
+          if-no-files-found: error

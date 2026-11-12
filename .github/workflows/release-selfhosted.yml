@@ -1,0 +1,52 @@
+name: Release (self-hosted)
+# Same as release.yml, built on your own Mac (labels: self-hosted, macOS, ARM64).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g. 0.8.3)"
+        required: true
+      release_notes:
+        description: "Release notes"
+        required: false
+        default: ""
+
+jobs:
+  release:
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          clean: true
+
+      - name: Build dylib
+        run: make -j$(sysctl -n hw.ncpu)
+
+      - name: Build config app
+        working-directory: macsteam-app
+        run: ./make_app.sh
+
+      - name: Package DMG
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          APP="macsteam-app/macSteam Config.app"
+          DMG="macSteam-${VERSION}.dmg"
+          rm -f "$DMG"
+          hdiutil create -volname "macSteam" -srcfolder "$APP" -ov -format UDZO "$DMG"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+        run: |
+          DMG="macSteam-${VERSION}.dmg"
+          NOTES="${RELEASE_NOTES:-macSteam v${VERSION}}"
+          gh release create "v${VERSION}" "$DMG" \
+            --title "v${VERSION}" \
+            --notes "$NOTES"
