@@ -300,9 +300,14 @@ static void sx_init(void) {
     }
 
     start_hubcap_bridge();
+    // sp.js patch order matters. The Cloud error patcher keys its recovery copy by the hash of
+    // the file it leaves behind, so anything that edits sp.js after it orphans that copy and the
+    // next launch tries to patch an already-patched bundle. The shared-library patch is a
+    // fixed-size edit that is a no-op once applied, so it runs first. scripts/tests/ui_patch_order.py
+    // enforces this order.
+    sx_librarysharing_patch_installed_js();
     remove_crash_sentinel();
     sx_clouderrors_patch_installed_js();
-    sx_librarysharing_patch_installed_js();
     sx_whatsnew_patch_installed_css();
 
     SX_LOG("macsteam loaded into %s (pid %d)", getprogname(), getpid());

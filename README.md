@@ -23,8 +23,9 @@ On Steam startup, macsteam also hides the “From the library of…” row (incl
 the lender avatar/status) and the legacy library-sharing retirement notice.
 The patch preserves the JavaScript file's byte length to avoid triggering Steam's
 startup size repair, and reapplies when macsteam loads after an update. It only
-changes the UI; sharing permissions are unaffected. Unknown bundle signatures
-are left unchanged, and Steam updates may require updating the signatures.
+changes the UI; sharing permissions are unaffected. The rows are found by their
+stable CSS-module names, so Steam's per-build identifier renaming doesn't matter;
+if a bundle no longer contains them, it is left unchanged.
 
 ## macSteam Config
 
