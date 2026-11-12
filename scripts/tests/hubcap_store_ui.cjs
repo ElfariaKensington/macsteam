@@ -37,7 +37,15 @@ function page(url = 'https://store.steampowered.com/app/620/Portal_2/') {
     let mutation;
     const location = new URL(url);
     const events = {};
-    const window = { macsteamHubcap: text => requests.push(JSON.parse(text)), addEventListener(name, fn) { (events[name] ||= []).push(fn); } };
+    const window = {
+        macsteamHubcap: text => {
+            const request = JSON.parse(text);
+            // Builds that also carry the game-fixes card ask separately; this test is about the
+            // Add/Install card, so those requests are answered with "no fixes".
+            if (request.action === 'fixes') { setImmediate(() => window.__macsteamHubcap.reply(request.id, { fixes: [] })); return; }
+            requests.push(request);
+        },
+        addEventListener(name, fn) { (events[name] ||= []).push(fn); } };
     const document = { documentElement: null, querySelector: () => host, createElement: tag => new Element(tag), createTextNode: text => { const node = new Element('#text'); node.textContent = text; return node; } };
     const context = vm.createContext({ window, document, location, setTimeout, clearTimeout,
         MutationObserver: class { constructor(callback) { mutation = callback; } observe(target) { assert.equal(target, document); } } });
