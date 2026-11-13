@@ -82,6 +82,73 @@ static void corrupt_packageinfo_vdf(void) {
 
 
 
+
+/* Steam's installed manifests are KeyValues text: "version" "1792618285". */
+static uint64_t manifest_build_version(const uint8_t *buf, size_t len) {
+    static const char key[] = "\"version\"";
+    const size_t key_len = sizeof(key) - 1;
+    if (!buf || len < key_len) return 0;
+
+    for (size_t i = 0; i + key_len <= len; i++) {
+        if (memcmp(buf + i, key, key_len) != 0) continue;
+        size_t p = i + key_len;
+        while (p < len && (buf[p] == ' ' || buf[p] == '\t' ||
+                           buf[p] == '\r' || buf[p] == '\n'))
+            p++;
+        if (p >= len || buf[p++] != '"') continue;
+
+        uint64_t build = 0;
+        size_t digits = 0;
+        while (p < len && buf[p] >= '0' && buf[p] <= '9') {
+            uint64_t digit = (uint64_t)(buf[p++] - '0');
+            if (build > (UINT64_MAX - digit) / 10) return 0;
+            build = build * 10 + digit;
+            digits++;
+        }
+        if (digits && p < len && buf[p] == '"') return build;
+    }
+    return 0;
+}
+
+static uint64_t running_steam_build(void) {
+    const char *home = sx_resolve_home();
+    if (!home) return 0;
+
+    /* Keep this order in sync with MacCrab.detectedVersion(). */
+    static const char *manifests[] = {
+        "steam_client_signed-2_osx.manifest",
+        "steam_client_signed_osx.manifest",
+        "steam_client_osx.manifest",
+    };
+    for (size_t i = 0; i < sizeof(manifests) / sizeof(manifests[0]); i++) {
+        char path[1024];
+        int n = snprintf(path, sizeof(path),
+                         "%s/Library/Application Support/Steam/Steam.AppBundle/"
+                         "Steam/Contents/MacOS/package/%s", home, manifests[i]);
+        if (n < 0 || (size_t)n >= sizeof(path)) continue;
+
+        size_t len = 0;
+        uint8_t *data = sx_slurp_file(path, &len);
+        if (!data) continue;
+        uint64_t build = manifest_build_version(data, len);
+        free(data);
+        if (build) return build;
+    }
+    return 0;
+}
+
+static int sigdb_for_build(const char *dir, uint64_t build,
+                           char *buf, size_t buf_size) {
+    if (!build) return -1;
+    char path[512];
+    int n = snprintf(path, sizeof(path), "%s/%llu.json", dir,
+                     (unsigned long long)build);
+    if (n < 0 || (size_t)n >= sizeof(path) || access(path, R_OK) != 0)
+        return -1;
+    n = snprintf(buf, buf_size, "%s", path);
+    return (n >= 0 && (size_t)n < buf_size) ? 0 : -1;
+}
+
 static int newest_sigdb_in_dir(const char *dir, char *buf, size_t buf_size) {
     DIR *d = opendir(dir);
     if (!d) return -1;
@@ -115,7 +182,7 @@ static int newest_sigdb_in_dir(const char *dir, char *buf, size_t buf_size) {
 }
 
 static void
-get_sigdb_path(char *buf, size_t buf_size) {
+get_sigdb_path(char *buf, size_t buf_size, uint64_t build) {
     const char *env = getenv("MACSTEAM_SIG");
     if (env && env[0]) {
         strncpy(buf, env, buf_size - 1);
@@ -128,6 +195,14 @@ get_sigdb_path(char *buf, size_t buf_size) {
 
     char dir[512];
     sx_macsteam_support_path(dir, sizeof(dir), home, "signatures/macos.arm64");
+
+    if (build && sigdb_for_build(dir, build, buf, buf_size) == 0)
+        return;
+
+    if (build)
+        SX_WARN("sigdb: no profile for Steam build %llu in %s; "
+                "falling back to newest available",
+                (unsigned long long)build, dir);
 
     if (newest_sigdb_in_dir(dir, buf, buf_size) == 0)
         return;
@@ -212,13 +287,22 @@ static void *loader_worker(void *unused) {
 
     sx_sigdb_t sigdb = {0};
 
+    uint64_t running_build = running_steam_build();
     char sig_path[512];
-    get_sigdb_path(sig_path, sizeof(sig_path));
+    get_sigdb_path(sig_path, sizeof(sig_path), running_build);
 
     if (sx_sigdb_load(sig_path, &sigdb) != 0) {
         SX_ERR("failed to load signature database from %s", sig_path);
         sx_config_free(&cfg);
         return NULL;
+    }
+
+    if (running_build && sigdb.steam_build &&
+        sigdb.steam_build != running_build) {
+        SX_WARN("sigdb: profile targets Steam build %llu but running client is "
+                "%llu; hook addresses may be wrong",
+                (unsigned long long)sigdb.steam_build,
+                (unsigned long long)running_build);
     }
 
     sx_resolve_result_t resolved = {0};

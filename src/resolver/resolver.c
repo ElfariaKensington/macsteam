@@ -16,7 +16,7 @@ int sx_is_arm64_prologue(uintptr_t addr) {
     if ((insn & 0xFFC07FFF) == 0xA9007BFD) return 1; // STP x29, x30, [SP, #off]
     if ((insn & 0xFFC07FFF) == 0xA9807BFD) return 1; // STP x29, x30, [SP, #off]!
     if (insn == 0xD503237F) return 1;                 // PACIBSP
-    if (insn == 0x910003FD) return 1;                 // MOV x29, SP
+    if ((insn & 0xFFC003FF) == 0x910003FD) return 1; // ADD x29, SP, #imm (MOV if imm=0)
     if ((insn & 0xFFC003E0) == 0xA98003E0) return 1; // STP Xt, Xt2, [SP, #off]!
     if ((insn & 0xFFC003E0) == 0xA90003E0) return 1; // STP Xt, Xt2, [SP, #off]
 
