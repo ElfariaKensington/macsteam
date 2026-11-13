@@ -3,10 +3,11 @@
 #include "../config/config.h"
 #include "../feats/schema_owners.h"
 #include "../constants.h"
+#include "../steam_types.h"
 #include "../util/log.h"
 #include <stdint.h>
 
-#define MSG_BODY_OFF          0x30
+#define MSG_BODY_OFF          offsetof(CProtoBufMsg_t, body)
 #define SEND_HASBITS_OFF      0x10
 #define SEND_GAME_ID_OFF      0x18
 #define SEND_STEAMID_OFF      0x28
