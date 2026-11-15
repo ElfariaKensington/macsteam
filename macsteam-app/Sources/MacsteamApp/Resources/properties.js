@@ -401,7 +401,7 @@
     });
     setPanelBusy(false);
     source.textContent = label;
-    toast(message || (ok ? "Saved. Restart Steam to apply."
+    toast(message || (ok ? "Saved and applied."
       : "macSteam could not save the selection."), !ok);
   }
 
