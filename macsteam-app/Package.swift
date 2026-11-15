@@ -4,10 +4,14 @@ import PackageDescription
 
 var targets: [Target] = [
     .executableTarget(
+        name: "AchievementUploader",
+        path: "Sources/AchievementUploader"
+    ),
+    .executableTarget(
         name: "MacsteamApp",
         dependencies: ["Sparkle"],
         path: "Sources/MacsteamApp",
-        resources: [.copy("Resources/hubcap-store.js")]
+        resources: [.copy("Resources/hubcap-store.js"), .copy("Resources/properties.js")]
     )
 ]
 

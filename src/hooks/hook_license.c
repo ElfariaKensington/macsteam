@@ -2,22 +2,30 @@
 #include "hooks.h"
 #include "../config/config.h"
 #include "../core/reconcile.h"
+#include "../feats/achievements.h"
 #include "../feats/license.h"
 #include "../constants.h"
 #include "../steam_types.h"
 #include "../util/log.h"
+#include <stdatomic.h>
 #include <stdint.h>
 
 
 static void *orig_BLoggedOn = NULL;
 typedef int (*fn_BLoggedOn)(void *self);
+static atomic_int g_ach_logged_on = 0;
 
 static int hook_BLoggedOn(void *self) {
     fn_BLoggedOn orig = (fn_BLoggedOn)orig_BLoggedOn;
     int result = orig(self);
     SX_DBG("BLoggedOn: %d", result);
-    if (result)
+    if (result) {
         sx_reconcile_set_login_observed();
+        if (!atomic_exchange(&g_ach_logged_on, 1) && sx_ach_spoof_enabled())
+            sx_ach_spoof_sync();
+    } else {
+        atomic_store(&g_ach_logged_on, 0);
+    }
     return result;
 }
 

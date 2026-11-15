@@ -1,6 +1,7 @@
 // GetUserStats owner redirect
 #include "hooks.h"
 #include "../config/config.h"
+#include "../feats/achievements.h"
 #include "../feats/schema_owners.h"
 #include "../constants.h"
 #include "../steam_types.h"
@@ -63,10 +64,16 @@ static int hook_sendAndRecv(void *self, void *send, uint32_t a2,
     if (!send_body || !recv_body)
         return orig(self, send, a2, timeOut, recv, targetType);
 
+
     sx_config_t *cfg = sx_config_current;
     int appId = (int)(*(uint64_t *)(send_body + SEND_GAME_ID_OFF) & 0xFFFFFF);
     if (!cfg || !sx_config_has_app(cfg, appId))
         return orig(self, send, a2, timeOut, recv, targetType);
+
+    // The exchange may download a schema. Give Steam a moment to persist it,
+    // then fold it into the local achievement cache.
+    if (sx_config_wants_achievements(cfg, appId))
+        sx_ach_spoof_schedule(appId);
 
     uint64_t original = *(uint64_t *)(send_body + SEND_STEAMID_OFF);
 

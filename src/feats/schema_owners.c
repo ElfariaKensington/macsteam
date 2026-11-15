@@ -8,11 +8,15 @@
 #include <string.h>
 #include <time.h>
 
+// The Store reviews JSON endpoint now redirects to the storefront for many
+// networks. The community reviews page is HTML but exposes the same reviewer
+// Steam IDs through profile links and data-miniprofile attributes.
 #define REVIEWS_URL_FMT \
-    "https://store.steampowered.com/appreviews/%d" \
-    "?json=1&filter=recent&language=all&purchase_type=all&num_per_page=%d"
+    "https://steamcommunity.com/app/%d/reviews/?browsefilter=mostrecent&p=1"
 
-#define REVIEWS_BUF_SIZE (128 * 1024)
+#define REVIEWS_BUF_SIZE (256 * 1024)
+
+#define STEAMID64_BASE 76561197960265728ULL
 
 #define MAX_TRACKED_APPS  256
 #define MAX_BLACKLIST     64
@@ -44,9 +48,9 @@ static int is_blacklisted(app_owner_state_t *s, uint64_t owner) {
     return 0;
 }
 
-static char *fetch_reviews_json(int appId, int count) {
+static char *fetch_reviews_html(int appId) {
     char url_buf[256];
-    snprintf(url_buf, sizeof(url_buf), REVIEWS_URL_FMT, appId, count);
+    snprintf(url_buf, sizeof(url_buf), REVIEWS_URL_FMT, appId);
 
     CFURLRef url = CFURLCreateWithBytes(NULL, (const UInt8 *)url_buf,
                                         (CFIndex)strlen(url_buf),
@@ -58,7 +62,9 @@ static char *fetch_reviews_json(int appId, int count) {
     if (!req) return NULL;
 
     CFHTTPMessageSetHeaderFieldValue(req, CFSTR("User-Agent"),
-                                     CFSTR("OpenSteamTool/1.0"));
+                                     CFSTR("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                                           "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                                           "Version/17.0 Safari/605.1.15"));
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -128,32 +134,46 @@ static char *fetch_reviews_json(int appId, int count) {
     return buf;
 }
 
-// Extract "steamid":"<digits>" from the reviews JSON by string scan.
-static int extract_steamids(const char *json, uint64_t *out, int max,
+static int add_owner(uint64_t id, uint64_t *out, int count, int max,
+                     app_owner_state_t *state) {
+    if (count >= max || id < STEAMID64_BASE) return 0;
+    if (state && is_blacklisted(state, id)) return 0;
+    for (int i = 0; i < count; i++)
+        if (out[i] == id) return 0;
+    out[count] = id;
+    return 1;
+}
+
+// Pull numeric reviewer profile IDs out of the community reviews HTML.
+static int extract_steamids(const char *html, uint64_t *out, int max,
                             app_owner_state_t *state) {
+    if (!html || !out || max <= 0) return 0;
     int count = 0;
-    const char *p = json;
 
-    while (count < max) {
-        p = strstr(p, "\"steamid\":\"");
-        if (!p) break;
-        p += 11; // skip past "steamid":"
-
+    const char *needle = "steamcommunity.com/profiles/";
+    const char *p = html;
+    while (count < max && (p = strstr(p, needle)) != NULL) {
+        p += strlen(needle);
         char *end = NULL;
         unsigned long long id = strtoull(p, &end, 10);
         if (end == p || id == 0) { p = end ? end : p + 1; continue; }
         p = end;
+        if (add_owner((uint64_t)id, out, count, max, state)) count++;
+    }
 
-        if (state && is_blacklisted(state, (uint64_t)id))
+    // Reviews whose author uses a vanity URL still carry the numeric account id.
+    const char *miniprofile = "data-miniprofile=\"";
+    p = html;
+    while (count < max && (p = strstr(p, miniprofile)) != NULL) {
+        p += strlen(miniprofile);
+        char *end = NULL;
+        unsigned long long account = strtoull(p, &end, 10);
+        if (end == p || account == 0 || account > 0xFFFFFFFFull) {
+            p = end ? end : p + 1;
             continue;
-
-        // Dedup
-        int dup = 0;
-        for (int i = 0; i < count; i++)
-            if (out[i] == (uint64_t)id) { dup = 1; break; }
-        if (dup) continue;
-
-        out[count++] = (uint64_t)id;
+        }
+        p = end;
+        if (add_owner(STEAMID64_BASE + account, out, count, max, state)) count++;
     }
     return count;
 }
@@ -171,15 +191,15 @@ void sx_schema_owners_get(int appId, sx_owner_list_t *out) {
         return;
     }
 
-    char *json = fetch_reviews_json(appId, SCHEMA_OWNERS_MAX);
-    if (!json) {
-        SX_WARN("[schema_owners] app %d: reviews API request failed", appId);
+    char *html = fetch_reviews_html(appId);
+    if (!html) {
+        SX_WARN("[schema_owners] app %d: reviews page request failed", appId);
         s->cooldown_until = now + SCHEMA_OWNERS_COOLDOWN_MINUTES * 60;
         return;
     }
 
-    out->count = extract_steamids(json, out->ids, SCHEMA_OWNERS_MAX, s);
-    free(json);
+    out->count = extract_steamids(html, out->ids, SCHEMA_OWNERS_MAX, s);
+    free(html);
 
     if (out->count == 0)
         s->cooldown_until = now + SCHEMA_OWNERS_COOLDOWN_MINUTES * 60;

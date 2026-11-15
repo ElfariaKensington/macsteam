@@ -47,9 +47,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         window.makeKeyAndOrderFront(nil)
+
+    }
+
+    private func presentPicker(appID: Int) {
+        store.load()
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        let name = store.config.appNames[appID] ?? "App \(appID)"
+        AchievementPickerPresenter.present(appID: appID, store: store, displayName: name)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let url = urls.first(where: { $0.scheme == "macsteam" }),
+              url.host == "achievements",
+              let appID = Int(url.lastPathComponent) else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.presentPicker(appID: appID)
+        }
+    }
 
     @objc private func checkForUpdatesMenu() {
         updaterManager.checkForUpdates()
