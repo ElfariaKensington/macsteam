@@ -9,6 +9,7 @@ final class HubcapStoreBridge {
     private let session: URLSession
     private var pages: [String: HubcapStorePage] = [:]
     private var propertiesPages: [String: PropertiesBridgePage] = [:]
+    private let sharedAchBridge = SharedContextAchievementBridge()
     private var lockFD: Int32 = -1
 
     init() {
@@ -91,6 +92,13 @@ final class HubcapStoreBridge {
                     propertiesPages[target.id] = page
                     page.start()
                 }
+                if let shared = targets.first(where: { $0.title == "SharedJSContext" }),
+                   let endpoint = shared.webSocketDebuggerUrl,
+                   let url = URL(string: endpoint), url.scheme == "ws", url.port == 8080,
+                   ["127.0.0.1", "localhost", "[::1]"].contains(url.host ?? ""),
+                   url.path.hasPrefix("/devtools/page/") {
+                    await sharedAchBridge.sync(targetID: shared.id, endpoint: url, session: session)
+                }
             } catch {
                 missed += 1
                 // Exit when Steam closes, with enough grace for its startup/relaunch. A slow
@@ -162,6 +170,7 @@ final class HubcapStoreBridge {
     private struct Target: Decodable {
         let id: String
         let type: String
+        let title: String?
         let url: String
         let webSocketDebuggerUrl: String?
     }

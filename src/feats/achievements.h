@@ -27,6 +27,7 @@
 typedef struct {
     uint32_t stat_id;
     uint32_t bits;
+    uint32_t valid_mask; // bit mask of defined bits in the schema
     uint32_t selected;   // bit mask of the achievements the user picked
 } sx_ach_stat_t;
 

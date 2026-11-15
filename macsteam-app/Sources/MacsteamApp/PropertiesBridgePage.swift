@@ -328,3 +328,147 @@ final class PropertiesAchievementHandler {
         return SteamLibrary.appID(named: title)
     }
 }
+
+@MainActor
+final class SharedContextAchievementBridge {
+    private var targetID: String?
+    private var lastConfigStamp: Date?
+    private var lastPayload: String?
+
+    func sync(targetID: String, endpoint: URL, session: URLSession) async {
+        let configURL = Paths.configFile
+        let stamp = (try? FileManager.default.attributesOfItem(atPath: configURL.path)[.modificationDate]) as? Date
+        if self.targetID == targetID && self.lastConfigStamp == stamp && lastPayload != nil {
+            return
+        }
+
+        let cfg = (try? String(contentsOf: configURL, encoding: .utf8)).map(MacsteamConfig.parse) ?? MacsteamConfig()
+        var map: [String: Any] = [:]
+        for (appID, sel) in cfg.achievementSpoof {
+            if sel.all {
+                map[String(appID)] = "all"
+            } else if !sel.ids.isEmpty {
+                map[String(appID)] = sel.ids
+            }
+        }
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: map),
+              let json = String(data: jsonData, encoding: .utf8) else { return }
+
+        let expression = """
+        (() => {
+          window.__macsteamAchSpoof = \(json);
+          window.__macsteamAchCache = {};
+          const refreshDetails = (appid) => {
+            const key = String(appid);
+            if (!window.__macsteamAchSpoof || !window.__macsteamAchSpoof[key]) return;
+            if (window.__macsteamAchPending && window.__macsteamAchPending[key]) return;
+            window.__macsteamAchPending = window.__macsteamAchPending || {};
+            window.__macsteamAchPending[key] = true;
+            SteamClient.Apps.GetMyAchievementsForApp(Number(appid)).then((res) => {
+              delete window.__macsteamAchPending[key];
+              const list = res && res.data && Array.isArray(res.data.rgAchievements) ? res.data.rgAchievements : null;
+              if (!list) return;
+              const achieved = list.filter(a => a.bAchieved);
+              const unachieved = list.filter(a => !a.bAchieved);
+              window.__macsteamAchCache[key] = {
+                vecHighlight: achieved.slice(0, 12),
+                vecUnachieved: unachieved,
+                vecAchievedHidden: achieved.filter(a => a.bHidden),
+                nTotal: list.length,
+                nAchieved: achieved.length
+              };
+              if (typeof appDetailsStore !== "undefined" && typeof appDetailsStore.AppDetailsChanged === "function") {
+                try { appDetailsStore.AppDetailsChanged(Number(appid)); } catch {}
+              }
+            }).catch(() => { delete window.__macsteamAchPending[key]; });
+          };
+          if (!window.__macsteamAchPatched) {
+            if (typeof SteamClient === "undefined" || !SteamClient.Apps || typeof SteamClient.Apps.GetMyAchievementsForApp !== "function") return "pending";
+            window.__macsteamAchPatched = true;
+            const orig = SteamClient.Apps.GetMyAchievementsForApp.bind(SteamClient.Apps);
+            SteamClient.Apps.GetMyAchievementsForApp = async function(appid) {
+              const res = await orig(appid);
+              const spoof = (window.__macsteamAchSpoof || {})[String(appid)];
+              if (!spoof || !res || !res.data || !Array.isArray(res.data.rgAchievements)) return res;
+              const all = spoof === "all";
+              const set = all ? null : new Set(spoof);
+              const now = Math.floor(Date.now() / 1000);
+              for (const a of res.data.rgAchievements) {
+                if (all || set.has(a.strID)) {
+                  a.bAchieved = true;
+                  if (!a.rtUnlocked) a.rtUnlocked = now;
+                }
+              }
+              return res;
+            };
+          }
+          if (!window.__macsteamAchDetailsPatched && typeof appDetailsStore !== "undefined" && typeof appDetailsStore.GetAchievements === "function") {
+            window.__macsteamAchDetailsPatched = true;
+            const origGetAch = appDetailsStore.GetAchievements.bind(appDetailsStore);
+            appDetailsStore.GetAchievements = function(appid) {
+              const res = origGetAch(appid);
+              const key = String(appid);
+              const spoof = (window.__macsteamAchSpoof || {})[key];
+              if (!spoof) return res;
+              const cached = window.__macsteamAchCache && window.__macsteamAchCache[key];
+              if (cached) return cached;
+              refreshDetails(appid);
+              return res;
+            };
+          }
+          if (!window.__macsteamAchProgPatched && typeof appAchievementProgressCache !== "undefined" && typeof appAchievementProgressCache.GetAchievementProgress === "function") {
+            window.__macsteamAchProgPatched = true;
+            const origProg = appAchievementProgressCache.GetAchievementProgress.bind(appAchievementProgressCache);
+            appAchievementProgressCache.GetAchievementProgress = function(appid) {
+              const key = String(appid);
+              const spoof = (window.__macsteamAchSpoof || {})[key];
+              if (!spoof) return origProg(appid);
+              if (spoof === "all") return 100;
+              const cached = window.__macsteamAchCache && window.__macsteamAchCache[key];
+              if (cached && cached.nTotal > 0) return Math.round((cached.nAchieved / cached.nTotal) * 100);
+              refreshDetails(appid);
+              return origProg(appid);
+            };
+          }
+          for (const appid of Object.keys(window.__macsteamAchSpoof || {})) refreshDetails(appid);
+          return (window.__macsteamAchDetailsPatched && window.__macsteamAchProgPatched) ? "installed" : "updated";
+        })()
+        """
+
+        let socket = session.webSocketTask(with: endpoint)
+        socket.resume()
+        defer { socket.cancel(with: .normalClosure, reason: nil) }
+
+        let command: [String: Any] = [
+            "id": 1,
+            "method": "Runtime.evaluate",
+            "params": ["expression": expression, "returnByValue": true],
+        ]
+        guard let encoded = try? JSONSerialization.data(withJSONObject: command) else { return }
+        do {
+            try await socket.send(.string(String(decoding: encoded, as: UTF8.self)))
+            for _ in 0..<8 {
+                let message = try await socket.receive()
+                let reply: Data
+                switch message {
+                case .string(let text): reply = Data(text.utf8)
+                case .data(let bytes): reply = bytes
+                @unknown default: continue
+                }
+                guard let object = try? JSONSerialization.jsonObject(with: reply) as? [String: Any],
+                      object["id"] as? Int == 1,
+                      let outer = object["result"] as? [String: Any],
+                      let remote = outer["result"] as? [String: Any],
+                      let status = remote["value"] as? String else { continue }
+                if status == "installed" || status == "updated" {
+                    self.targetID = targetID
+                    self.lastConfigStamp = stamp
+                    self.lastPayload = json
+                }
+                break
+            }
+        } catch {
+            // Will retry on the next poll tick if SharedJSContext is still starting.
+        }
+    }
+}

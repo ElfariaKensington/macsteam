@@ -60,10 +60,8 @@ enum AchievementCatalog {
 
             for (childName, childNode) in statNode.children ?? [] {
                 guard childName == "bits", let bits = childNode.children else { continue }
-                for (_, bitNode) in bits {
-                    // The order of the bits children is the bit index. Steam
-                    // schemas use both 0- and 1-based section names.
-                    let bit = nextBit
+                for (bitName, bitNode) in bits {
+                    let bit = Int(bitName) ?? nextBit
                     nextBit += 1
 
                     guard bit < 32,

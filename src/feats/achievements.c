@@ -68,18 +68,21 @@ static int is_achievement_stat(const sx_bkv_node_t *stat) {
 }
 
 static uint32_t selection_mask(const sx_bkv_node_t *stat, int app_id,
-                               const sx_config_t *cfg, uint32_t *bits_out) {
+                               const sx_config_t *cfg, uint32_t *bits_out,
+                               uint32_t *valid_out) {
     int all = cfg && sx_config_achievement_all((sx_config_t *)cfg, app_id);
     uint32_t mask = 0;
+    uint32_t valid = 0;
     uint32_t total = 0;
 
     for (const sx_bkv_node_t *c = stat->child; c; c = c->next) {
         if (c->type != SX_BKV_SECTION || strcmp(c->name, "bits") != 0) continue;
         for (const sx_bkv_node_t *b = c->child; b; b = b->next) {
-            // Bit order is the order of the "bits" children. Some schemas
-            // number them from 0, others from 1; the names are not the index.
             uint32_t bit = total;
+            if (!name_u32(b->name, &bit))
+                bit = total;
             if (bit < SX_ACH_MAX_BITS) {
+                valid |= 1u << bit;
                 if (all) {
                     mask |= 1u << bit;
                 } else if (cfg) {
@@ -93,6 +96,7 @@ static uint32_t selection_mask(const sx_bkv_node_t *stat, int app_id,
         }
     }
     *bits_out = total > SX_ACH_MAX_BITS ? SX_ACH_MAX_BITS : total;
+    *valid_out = valid;
     return mask;
 }
 
@@ -123,10 +127,12 @@ int sx_ach_collect_schema(const sx_bkv_node_t *schema_root, int app_id,
         if (!name_u32(node->name, &stat_id)) continue;
         if (!is_achievement_stat(node)) continue;
         uint32_t bits = 0;
-        uint32_t selected = selection_mask(node, app_id, cfg, &bits);
+        uint32_t valid = 0;
+        uint32_t selected = selection_mask(node, app_id, cfg, &bits, &valid);
         if (!bits) continue;
         out[count].stat_id = stat_id;
         out[count].bits = bits;
+        out[count].valid_mask = valid;
         out[count].selected = selected;
         count++;
     }
@@ -195,7 +201,8 @@ int sx_ach_apply(sx_bkv_node_t *cache_root, const sx_ach_stat_t *stat,
 
     char key[16];
     stat_key(stat->stat_id, key, sizeof(key));
-    uint32_t mask = stat->selected & bit_mask(stat->bits);
+    uint32_t valid = stat->valid_mask ? stat->valid_mask : bit_mask(stat->bits);
+    uint32_t mask = stat->selected & valid;
 
     if (!orig->section_present && mask == 0) {
         if (!sx_bkv_child(cache_root, key)) return 0;
@@ -216,7 +223,8 @@ int sx_ach_apply(sx_bkv_node_t *cache_root, const sx_ach_stat_t *stat,
     }
 
     int any_time = 0;
-    for (uint32_t bit = 0; bit < stat->bits && bit < SX_ACH_MAX_BITS; bit++) {
+    for (uint32_t bit = 0; bit < SX_ACH_MAX_BITS; bit++) {
+        if (!(valid & (1u << bit))) continue;
         int32_t dummy;
         if ((mask & (1u << bit)) || orig_time(orig, bit, &dummy)) {
             any_time = 1;
@@ -236,7 +244,8 @@ int sx_ach_apply(sx_bkv_node_t *cache_root, const sx_ach_stat_t *stat,
     if (!times) return changed;
     int32_t fallback = (int32_t)unlock_time;
 
-    for (uint32_t bit = 0; bit < stat->bits && bit < SX_ACH_MAX_BITS; bit++) {
+    for (uint32_t bit = 0; bit < SX_ACH_MAX_BITS; bit++) {
+        if (!(valid & (1u << bit))) continue;
         char name[16];
         snprintf(name, sizeof(name), "%u", bit);
         int has_time = 0;

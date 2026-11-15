@@ -38,7 +38,7 @@ static void add_bits(sx_bkv_node_t *stat, const char *const *ids, int count) {
     assert(bits);
     for (int i = 0; i < count; i++) {
         char name[16];
-        snprintf(name, sizeof(name), "%d", i + 1);
+        snprintf(name, sizeof(name), "%d", i);
         sx_bkv_node_t *bit = append_section(bits, name);
         assert(bit);
         assert(sx_bkv_set_string(bit, "name", ids[i]));
@@ -70,7 +70,7 @@ static sx_bkv_node_t *build_schema(void) {
     assert(bits);
     for (int i = 0; i < 32; i++) {
         char section[16], id[32];
-        snprintf(section, sizeof(section), "%d", i + 1);
+        snprintf(section, sizeof(section), "%d", i);
         snprintf(id, sizeof(id), "ACH_WIDE_%d", i);
         sx_bkv_node_t *bit = append_section(bits, section);
         assert(bit);
