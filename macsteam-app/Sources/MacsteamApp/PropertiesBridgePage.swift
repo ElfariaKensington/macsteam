@@ -342,15 +342,7 @@ final class SharedContextAchievementBridge {
             return
         }
 
-        let cfg = (try? String(contentsOf: configURL, encoding: .utf8)).map(MacsteamConfig.parse) ?? MacsteamConfig()
-        var map: [String: Any] = [:]
-        for (appID, sel) in cfg.achievementSpoof {
-            if sel.all {
-                map[String(appID)] = "all"
-            } else if !sel.ids.isEmpty {
-                map[String(appID)] = sel.ids
-            }
-        }
+        let map = Self.loadSpoofMap(from: configURL)
         guard let jsonData = try? JSONSerialization.data(withJSONObject: map),
               let json = String(data: jsonData, encoding: .utf8) else { return }
 
@@ -435,6 +427,27 @@ final class SharedContextAchievementBridge {
         })()
         """
 
+        if await Self.evaluateStatus(expression: expression, endpoint: endpoint, session: session) == "installed" {
+            self.targetID = targetID
+            self.lastConfigStamp = stamp
+            self.lastPayload = json
+        }
+    }
+
+    static func loadSpoofMap(from configURL: URL) -> [String: Any] {
+        let cfg = (try? String(contentsOf: configURL, encoding: .utf8)).map(MacsteamConfig.parse) ?? MacsteamConfig()
+        var map: [String: Any] = [:]
+        for (appID, sel) in cfg.achievementSpoof {
+            if sel.all {
+                map[String(appID)] = "all"
+            } else if !sel.ids.isEmpty {
+                map[String(appID)] = sel.ids
+            }
+        }
+        return map
+    }
+
+    static func evaluateStatus(expression: String, endpoint: URL, session: URLSession) async -> String? {
         let socket = session.webSocketTask(with: endpoint)
         socket.resume()
         defer { socket.cancel(with: .normalClosure, reason: nil) }
@@ -444,7 +457,7 @@ final class SharedContextAchievementBridge {
             "method": "Runtime.evaluate",
             "params": ["expression": expression, "returnByValue": true],
         ]
-        guard let encoded = try? JSONSerialization.data(withJSONObject: command) else { return }
+        guard let encoded = try? JSONSerialization.data(withJSONObject: command) else { return nil }
         do {
             try await socket.send(.string(String(decoding: encoded, as: UTF8.self)))
             for _ in 0..<8 {
@@ -460,15 +473,137 @@ final class SharedContextAchievementBridge {
                       let outer = object["result"] as? [String: Any],
                       let remote = outer["result"] as? [String: Any],
                       let status = remote["value"] as? String else { continue }
-                if status == "installed" || status == "updated" {
-                    self.targetID = targetID
-                    self.lastConfigStamp = stamp
-                    self.lastPayload = json
-                }
-                break
+                return status
             }
         } catch {
-            // Will retry on the next poll tick if SharedJSContext is still starting.
+            // Will retry on the next poll tick if the target is still starting.
+        }
+        return nil
+    }
+}
+
+@MainActor
+final class SteamQueryCacheAchievementBridge {
+    private var targetID: String?
+    private var lastConfigStamp: Date?
+    private var lastPayload: String?
+
+    func sync(targetID: String, endpoint: URL, session: URLSession) async {
+        let configURL = Paths.configFile
+        let stamp = (try? FileManager.default.attributesOfItem(atPath: configURL.path)[.modificationDate]) as? Date
+        if self.targetID == targetID && self.lastConfigStamp == stamp && lastPayload != nil {
+            return
+        }
+
+        let map = SharedContextAchievementBridge.loadSpoofMap(from: configURL)
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: map),
+              let json = String(data: jsonData, encoding: .utf8) else { return }
+
+        let expression = """
+        (() => {
+          window.__macsteamAchSpoof = \(json);
+          window.__macsteamAchAdded = window.__macsteamAchAdded || {};
+          const findQC = () => {
+            if (window.__macsteamQC && typeof window.__macsteamQC.getQueryCache === "function") return window.__macsteamQC;
+            const el = Array.from(document.querySelectorAll("*")).find(e => Object.keys(e).some(k => k.startsWith("__reactFiber") || k.startsWith("__reactContainer")));
+            if (!el) return null;
+            const fk = Object.keys(el).find(k => k.startsWith("__reactFiber") || k.startsWith("__reactContainer"));
+            let cur = el[fk];
+            while (cur && cur.return) cur = cur.return;
+            const q = cur ? [cur] : [];
+            const seen = new Set();
+            while (q.length) {
+              const n = q.shift();
+              if (!n || seen.has(n)) continue;
+              seen.add(n);
+              if (n.memoizedProps && n.memoizedProps.client && typeof n.memoizedProps.client.getQueryCache === "function") {
+                window.__macsteamQC = n.memoizedProps.client;
+                return window.__macsteamQC;
+              }
+              if (n.child) q.push(n.child);
+              if (n.sibling) q.push(n.sibling);
+            }
+            return null;
+          };
+          const qc = findQC();
+          if (!qc) return "pending";
+
+          const applyForApp = (appid) => {
+            if (window.__macsteamQApplying) return;
+            const numId = Number(appid);
+            const strId = String(appid);
+            const allQ = qc.getQueryCache().getAll();
+            const schemaQ = allQ.find(x => Array.isArray(x.queryKey) && x.queryKey[0] === "achievements" && x.queryKey[1] === numId && x.queryKey[2] === "schema");
+            const userQ = allQ.find(x => Array.isArray(x.queryKey) && x.queryKey[0] === "achievements" && x.queryKey[1] === numId && x.queryKey[2] === "user_achievements");
+            const schema = schemaQ && schemaQ.state && schemaQ.state.data;
+            const user = userQ && userQ.state && userQ.state.data;
+            if (!schema || !user) return;
+
+            const spoof = (window.__macsteamAchSpoof || {})[strId];
+            const all = spoof === "all";
+            const set = (!spoof || all) ? null : new Set(spoof);
+            const added = window.__macsteamAchAdded[strId] || {};
+            const prevAch = user.achievements || {};
+            const nextAch = { ...prevAch };
+            const now = Math.floor(Date.now() / 1000);
+            let changed = false;
+
+            const wantKeys = new Set();
+            for (const g of schema.groups || []) {
+              for (const a of g.achievements || []) {
+                if (spoof && (all || set.has(a.api_name))) {
+                  const k = String(a.internal_key);
+                  wantKeys.add(k);
+                  if (!nextAch[k] || !nextAch[k].unlocked) {
+                    nextAch[k] = { internal_key: a.internal_key, unlocked: true, unlock_time: now };
+                    added[k] = true;
+                    changed = true;
+                  }
+                }
+              }
+            }
+            for (const k of Object.keys(added)) {
+              if (!wantKeys.has(k)) {
+                delete nextAch[k];
+                delete added[k];
+                changed = true;
+              }
+            }
+            window.__macsteamAchAdded[strId] = added;
+            if (changed) {
+              window.__macsteamQApplying = true;
+              try { qc.setQueryData(userQ.queryKey, { ...user, achievements: nextAch }); }
+              finally { window.__macsteamQApplying = false; }
+            }
+          };
+
+          if (!window.__macsteamQCSubscribed) {
+            window.__macsteamQCSubscribed = true;
+            qc.getQueryCache().subscribe((event) => {
+              if (window.__macsteamQApplying) return;
+              const key = event && event.query && event.query.queryKey;
+              if (!Array.isArray(key) || key[0] !== "achievements") return;
+              if (key[2] !== "user_achievements" && key[2] !== "schema") return;
+              const id = String(key[1]);
+              if ((window.__macsteamAchSpoof && window.__macsteamAchSpoof[id]) || (window.__macsteamAchAdded && window.__macsteamAchAdded[id])) {
+                applyForApp(id);
+              }
+            });
+          }
+
+          const ids = new Set([
+            ...Object.keys(window.__macsteamAchSpoof || {}),
+            ...Object.keys(window.__macsteamAchAdded || {}),
+          ]);
+          for (const id of ids) applyForApp(id);
+          return "installed";
+        })()
+        """
+
+        if await SharedContextAchievementBridge.evaluateStatus(expression: expression, endpoint: endpoint, session: session) == "installed" {
+            self.targetID = targetID
+            self.lastConfigStamp = stamp
+            self.lastPayload = json
         }
     }
 }

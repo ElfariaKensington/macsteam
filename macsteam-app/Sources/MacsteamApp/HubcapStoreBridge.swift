@@ -10,6 +10,7 @@ final class HubcapStoreBridge {
     private var pages: [String: HubcapStorePage] = [:]
     private var propertiesPages: [String: PropertiesBridgePage] = [:]
     private let sharedAchBridge = SharedContextAchievementBridge()
+    private let steamQCAchBridge = SteamQueryCacheAchievementBridge()
     private var lockFD: Int32 = -1
 
     init() {
@@ -98,6 +99,13 @@ final class HubcapStoreBridge {
                    ["127.0.0.1", "localhost", "[::1]"].contains(url.host ?? ""),
                    url.path.hasPrefix("/devtools/page/") {
                     await sharedAchBridge.sync(targetID: shared.id, endpoint: url, session: session)
+                }
+                if let steamWin = targets.first(where: { $0.title == "Steam" }),
+                   let endpoint = steamWin.webSocketDebuggerUrl,
+                   let url = URL(string: endpoint), url.scheme == "ws", url.port == 8080,
+                   ["127.0.0.1", "localhost", "[::1]"].contains(url.host ?? ""),
+                   url.path.hasPrefix("/devtools/page/") {
+                    await steamQCAchBridge.sync(targetID: steamWin.id, endpoint: url, session: session)
                 }
             } catch {
                 missed += 1
