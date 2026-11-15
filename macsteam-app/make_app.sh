@@ -21,6 +21,7 @@ mkdir -p "$APP/Contents/Resources"
 mkdir -p "$APP/Contents/Frameworks"
 
 cp ".build/release/$BIN_NAME" "$APP/Contents/MacOS/$BIN_NAME"
+cp ".build/release/AchievementUploader" "$APP/Contents/MacOS/AchievementUploader"
 install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/$BIN_NAME"
 cp "$ICON_SRC" "$APP/Contents/Resources/AppIcon.icns"
 cp -R ".build/release/MacsteamApp_MacsteamApp.bundle" "$APP/Contents/Resources/"
@@ -87,6 +88,13 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>NSPrincipalClass</key>        <string>NSApplication</string>
     <key>SUFeedURL</key>               <string>https://raw.githubusercontent.com/crghofficial/macsteam/main/appcast.xml</string>
     <key>SUPublicEDKey</key>           <string>rDOXzJ+vt12aWeu9hATgvz6q46MlRcgR4gbTfj5YuWQ=</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>    <string>com.macsteam.achievements</string>
+            <key>CFBundleURLSchemes</key> <array><string>macsteam</string></array>
+        </dict>
+    </array>
 </dict>
 </plist>
 PLIST

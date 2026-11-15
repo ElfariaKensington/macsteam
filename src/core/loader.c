@@ -8,6 +8,7 @@
 #include "../core/macho.h"
 #include "../core/reconcile.h"
 #include "../hooks/hooks.h"
+#include "../feats/achievements.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -313,6 +314,11 @@ static void *loader_worker(void *unused) {
     SX_LOG("signatures: %d/%d resolved", resolved_count, sigdb.sig_count);
 
     sx_config_current = &cfg;
+
+    // Patch stats caches before Steam's first game launch. Idempotent and
+    // skipped per-app when no schema/cache exists yet.
+    sx_ach_spoof_sync();
+    sx_ach_spoof_start_watcher();
 
     int total = 0;
     int installed = sx_hooks_install_all(&resolved, &total);

@@ -12,6 +12,7 @@ enum parse_section {
     SEC_NONE = 0,
     SEC_APPS,
     SEC_PACKAGE_IDS,
+    SEC_ACHIEVEMENTS,
     SEC_DEPOT_KEYS,
     SEC_ONLINEFIX,
 };
@@ -84,6 +85,45 @@ static int append_int(int **arr, int *count, int *cap, int value) {
     return 0;
 }
 
+static sx_ach_app_t *ach_app_find(sx_config_t *cfg, int app_id) {
+    for (int i = 0; i < cfg->ach_app_count; i++)
+        if (cfg->ach_apps[i].app_id == app_id) return &cfg->ach_apps[i];
+    return NULL;
+}
+
+static sx_ach_app_t *ach_app_ensure(sx_config_t *cfg, int app_id) {
+    sx_ach_app_t *app = ach_app_find(cfg, app_id);
+    if (app) return app;
+    sx_ach_app_t *grown = (sx_ach_app_t *)realloc(
+        cfg->ach_apps, (size_t)(cfg->ach_app_count + 1) * sizeof(*grown));
+    if (!grown) return NULL;
+    cfg->ach_apps = grown;
+    app = &cfg->ach_apps[cfg->ach_app_count++];
+    memset(app, 0, sizeof(*app));
+    app->app_id = app_id;
+    return app;
+}
+
+static int ach_app_add_id(sx_ach_app_t *app, const char *id) {
+    if (!app || !id) return -1;
+    size_t len = strlen(id);
+    if (!len || len >= SX_CONFIG_ACH_ID) return -1;
+    for (int i = 0; i < app->id_count; i++)
+        if (strcmp(app->ids[i], id) == 0) return 0;
+    if (app->id_count >= app->id_cap) {
+        int cap = app->id_cap ? app->id_cap * 2 : 16;
+        char **grown = (char **)realloc(app->ids, (size_t)cap * sizeof(*grown));
+        if (!grown) return -1;
+        app->ids = grown;
+        app->id_cap = cap;
+    }
+    char *copy = (char *)malloc(len + 1);
+    if (!copy) return -1;
+    memcpy(copy, id, len + 1);
+    app->ids[app->id_count++] = copy;
+    return 0;
+}
+
 int sx_config_load(const char *path, sx_config_t *cfg) {
     if (!path || !cfg) return -1;
     memset(cfg, 0, sizeof(*cfg));
@@ -99,6 +139,7 @@ int sx_config_load(const char *path, sx_config_t *cfg) {
     int app_cap = 0, pkg_cap = 0;
     int dk_current_app = 0;
     int of_current = -1;
+    int ach_current = -1;
     unsigned of_seen = 0;
     int of_invalid = 0;
 
@@ -114,10 +155,12 @@ int sx_config_load(const char *path, sx_config_t *cfg) {
             section = SEC_NONE;
             dk_current_app = 0;
             of_current = -1;
+            ach_current = -1;
 
             if (section_is(trimmed, "OnlineFix")) { section = SEC_ONLINEFIX; continue; }
             if (section_is(trimmed, "Apps"))           { section = SEC_APPS; continue; }
             if (section_is(trimmed, "PackageIds"))      { section = SEC_PACKAGE_IDS; continue; }
+            if (section_is(trimmed, "AchievementSpoof")) { section = SEC_ACHIEVEMENTS; continue; }
             if (section_is(trimmed, "DepotKeys"))       { section = SEC_DEPOT_KEYS; continue; }
             const char *val = value_after_colon(trimmed);
             if (val) {
@@ -178,6 +221,49 @@ invalid_onlinefix:
             of_invalid = 1;
             SX_ERR("config: invalid OnlineFix settings in '%s'; routing disabled", path);
             continue;
+        }
+
+        if (section == SEC_ACHIEVEMENTS) {
+            if (indent == 2) {
+                ach_current = -1;
+                if (trimmed[0] == '-') {
+                    const char *item = trimmed + 1;
+                    while (*item == ' ') item++;
+                    int id = atoi(item);
+                    if (id > 0) {
+                        sx_ach_app_t *app = ach_app_ensure(cfg, id);
+                        if (app) app->all = 1;
+                    }
+                    continue;
+                }
+                char key[64];
+                if (key_before_colon(line, key, sizeof(key)) != 0) continue;
+                int id = atoi(key);
+                if (id <= 0) continue;
+                sx_ach_app_t *app = ach_app_ensure(cfg, id);
+                if (!app) continue;
+                const char *val = value_after_colon(line);
+                if (!val) {
+                    ach_current = (int)(app - cfg->ach_apps);
+                } else if (strcasecmp(val, "all") == 0 || parse_bool(val)) {
+                    app->all = 1;
+                }
+                continue;
+            }
+            if (indent == 4 && ach_current >= 0 && trimmed[0] == '-') {
+                const char *item = trimmed + 1;
+                while (*item == ' ' || *item == '\t') item++;
+                char id[SX_CONFIG_ACH_ID];
+                size_t n = 0;
+                while (item[n] && item[n] != ' ' && item[n] != '\t' && item[n] != '#') n++;
+                if (n > 0 && n < sizeof(id)) {
+                    memcpy(id, item, n);
+                    id[n] = '\0';
+                    strip_quotes(id);
+                    ach_app_add_id(&cfg->ach_apps[ach_current], id);
+                }
+                continue;
+            }
         }
 
         if (indent == 2) {
@@ -241,8 +327,8 @@ invalid_onlinefix:
     }
 
     fclose(f);
-    SX_LOG("config: loaded '%s'. %d apps, %d pkgs, %d depot_key groups",
-           path, cfg->app_count, cfg->pkg_count, cfg->dk_count);
+    SX_LOG("config: loaded '%s'. %d apps, %d pkgs, %d achievement apps, %d depot_key groups",
+           path, cfg->app_count, cfg->pkg_count, cfg->ach_app_count, cfg->dk_count);
     return 0;
 }
 
@@ -251,6 +337,12 @@ void sx_config_free(sx_config_t *cfg) {
     free(cfg->onlinefix_games); cfg->onlinefix_games = NULL; cfg->onlinefix_count = 0;
     free(cfg->app_ids); cfg->app_ids = NULL; cfg->app_count = 0;
     free(cfg->package_ids); cfg->package_ids = NULL; cfg->pkg_count = 0;
+    for (int i = 0; i < cfg->ach_app_count; i++) {
+        for (int j = 0; j < cfg->ach_apps[i].id_count; j++)
+            free(cfg->ach_apps[i].ids[j]);
+        free(cfg->ach_apps[i].ids);
+    }
+    free(cfg->ach_apps); cfg->ach_apps = NULL; cfg->ach_app_count = 0;
 }
 
 static int contains_int(const int *values, int count, int target) {
@@ -265,6 +357,28 @@ int sx_config_has_app(sx_config_t *cfg, int app_id) {
 
 int sx_config_has_package(sx_config_t *cfg, int package_id) {
     return cfg ? contains_int(cfg->package_ids, cfg->pkg_count, package_id) : 0;
+}
+
+const sx_ach_app_t *sx_config_achievement_app(sx_config_t *cfg, int app_id) {
+    return cfg ? ach_app_find(cfg, app_id) : NULL;
+}
+
+int sx_config_wants_achievements(sx_config_t *cfg, int app_id) {
+    return sx_config_achievement_app(cfg, app_id) != NULL;
+}
+
+int sx_config_achievement_all(sx_config_t *cfg, int app_id) {
+    const sx_ach_app_t *app = sx_config_achievement_app(cfg, app_id);
+    return app ? app->all : 0;
+}
+
+int sx_config_achievement_selected(sx_config_t *cfg, int app_id, const char *ach_id) {
+    const sx_ach_app_t *app = sx_config_achievement_app(cfg, app_id);
+    if (!app || !ach_id) return 0;
+    if (app->all) return 1;
+    for (int i = 0; i < app->id_count; i++)
+        if (strcmp(app->ids[i], ach_id) == 0) return 1;
+    return 0;
 }
 
 int sx_config_app_depots(sx_config_t *cfg, int app_id, int *out, int max) {

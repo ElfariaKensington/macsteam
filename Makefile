@@ -24,11 +24,13 @@ DOBBY_LIBS := $(DOBBY_DIR)/libdobby.a \
 
 SRCS := src/core/loader.c \
         src/core/ctx.c \
+        src/core/bkv.c \
         src/core/macho.c \
         src/core/reconcile.c \
         src/core/session.c \
         src/core/stats_cache.c \
         src/feats/apps.c \
+        src/feats/achievements.c \
         src/feats/dlc.c \
         src/feats/package.c \
         src/feats/license.c \
@@ -116,6 +118,35 @@ AOB_PROBE_BIN := $(OUT_DIR)/tests/aob_probe
 ANCHOR_PROBE_SRC := tests/anchor_probe.c
 ANCHOR_PROBE_BIN := $(OUT_DIR)/tests/anchor_probe
 
+SCHEMA_PROBE := $(OUT_DIR)/tests/schema_owners_probe
+$(SCHEMA_PROBE): tests/schema_owners_probe.c src/feats/schema_owners.c src/feats/schema_owners.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -o $@ tests/schema_owners_probe.c src/util/log.c src/util/file.c $(FRAMEWORKS)
+	@echo "==> Built probe: $@"
+
+.PHONY: test-schema-owners
+test-schema-owners: $(SCHEMA_PROBE)
+	$(SCHEMA_PROBE)
+
+ACH_PROBE_SRC := tests/achievement_probe.c
+ACH_PROBE_BIN := $(OUT_DIR)/tests/achievement_probe
+
+ACH_PROBE_DEPS := src/feats/achievements.c src/feats/achievements.h \
+                  src/core/bkv.c src/core/bkv.h src/core/stats_cache.c \
+                  src/config/config.c src/config/config.h src/constants.h \
+                  src/util/log.c src/util/file.c
+
+$(ACH_PROBE_BIN): $(ACH_PROBE_SRC) $(ACH_PROBE_DEPS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -o $@ $(ACH_PROBE_SRC) src/feats/achievements.c \
+		src/core/bkv.c src/core/stats_cache.c src/config/config.c \
+		src/util/log.c src/util/file.c
+	@echo "==> Built probe: $@"
+
+.PHONY: test-achievements
+test-achievements: $(ACH_PROBE_BIN)
+	$(ACH_PROBE_BIN)
+
 probe:
 	@if [ -f "$(PROBE_SRC)" ]; then $(MAKE) $(PROBE_BIN); \
 	 else echo "==> No local tests, skipping probe."; fi
@@ -148,7 +179,7 @@ $(OUT_DIR)/tests/license_probe: tests/license_probe.c src/feats/license.c src/fe
 	@mkdir -p $(dir $@)
 	$(CC) -std=c17 -Wall -Wextra -Isrc -o $@ tests/license_probe.c src/feats/license.c
 
-test: test-onlinefix test-manifest test-license
+test: test-onlinefix test-manifest test-license test-achievements test-schema-owners
 	@if [ ! -d macsteam-app/Tests ]; then echo "==> No existing app tests, skipping app test suite."; exit 0; fi; \
 	 $(MAKE) $(PROBE_BIN) $(STATS_PROBE_BIN) $(AOB_PROBE_BIN) $(ANCHOR_PROBE_BIN); \
 	 echo "==> Running C stats-resolver probe..."; \

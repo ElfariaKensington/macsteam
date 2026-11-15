@@ -48,6 +48,14 @@ final class ConfigStore {
         try mutate { $0.hideCloudErrors = on }
     }
 
+    func setAchievementAll(_ appID: Int, enabled: Bool) throws {
+        try mutate { $0.setAchievementAll(appID, enabled: enabled) }
+    }
+
+    func setAchievementIDs(_ appID: Int, ids: [String]) throws {
+        try mutate { $0.setAchievementIDs(appID, ids) }
+    }
+
     // MARK: - conflict + backup internals
 
     private func reconcileWithDiskIfChanged() {

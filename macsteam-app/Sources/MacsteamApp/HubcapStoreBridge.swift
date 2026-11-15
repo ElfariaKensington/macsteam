@@ -8,6 +8,7 @@ final class HubcapStoreBridge {
     private let installer = HubcapStoreInstaller()
     private let session: URLSession
     private var pages: [String: HubcapStorePage] = [:]
+    private var propertiesPages: [String: PropertiesBridgePage] = [:]
     private var lockFD: Int32 = -1
 
     init() {
@@ -69,6 +70,9 @@ final class HubcapStoreBridge {
                 for id in pages.keys where !live.contains(id) || pages[id]?.closed == true {
                     pages.removeValue(forKey: id)?.close()
                 }
+                for id in propertiesPages.keys where !live.contains(id) || propertiesPages[id]?.closed == true {
+                    propertiesPages.removeValue(forKey: id)?.close()
+                }
                 for target in targets where target.type == "page" && Self.isStoreURL(target.url) {
                     guard pages[target.id] == nil, let endpoint = target.webSocketDebuggerUrl,
                           let url = URL(string: endpoint), url.scheme == "ws", url.port == 8080,
@@ -76,6 +80,15 @@ final class HubcapStoreBridge {
                           url.path.hasPrefix("/devtools/page/") else { continue }
                     let page = HubcapStorePage(socket: session.webSocketTask(with: url), installer: installer)
                     pages[target.id] = page
+                    page.start()
+                }
+                for target in targets where target.type == "page" && Self.isPropertiesURL(target.url) {
+                    guard propertiesPages[target.id] == nil, let endpoint = target.webSocketDebuggerUrl,
+                          let url = URL(string: endpoint), url.scheme == "ws", url.port == 8080,
+                          ["127.0.0.1", "localhost", "[::1]"].contains(url.host ?? ""),
+                          url.path.hasPrefix("/devtools/page/") else { continue }
+                    let page = PropertiesBridgePage(socket: session.webSocketTask(with: url))
+                    propertiesPages[target.id] = page
                     page.start()
                 }
             } catch {
@@ -86,13 +99,18 @@ final class HubcapStoreBridge {
                     if Self.steamIsRunning() { missed = 0 } else { break }
                 }
             }
-            try? await Task.sleep(for: .seconds(2))
+            try? await Task.sleep(for: .milliseconds(500))
         }
         pages.values.forEach { $0.close() }
+        propertiesPages.values.forEach { $0.close() }
     }
 
     nonisolated static func steamIsRunning() -> Bool {
         Subprocess.run("/usr/bin/pgrep", ["-x", "steam_osx"]).code == 0
+    }
+
+    static func isPropertiesURL(_ value: String) -> Bool {
+        value.hasPrefix("about:blank?createflags=4114")
     }
 
     static func isStoreURL(_ value: String) -> Bool {

@@ -8,6 +8,8 @@ If you don't know what a Steam Unlock Client is, think 'SteamTools/OpenSteamTool
 
 This is a minimal unlock client, at the moment. It supports game ownership spoofing ('unlocking') and license injection/downloading. It also has an achievement schema fetcher that is, umm, heavily 'inspired' by the one used in [SLSSteam](https://github.com/AceSLS/SLSsteam) but is no where as good or as well tested as that component was re-engineered hastily over the course of a few hours so that I could release.... 
 
+There is also achievement spoofing: right-click a game in the Apps list and choose Achievements… to pick every achievement or just the ones you want. The same picker is available from the Achievements item in a game's Steam Properties sidebar. macSteam marks them as unlocked in Steam's local stats cache, so the game and the Steam library show them as earned. For games you own, tick “Upload to Steam profile” to store the selection on your Steam account as well; games you do not own stay local. Clearing a game's selection restores the achievements that were unlocked before.
+
 Other than that one thing, this is an original work. It is _not_ a port of OpenSteamTool or SLSSteam to macOS. 
 
 Manifest request codes are fetched from ManifestDeX over HTTPS, using the provider protocol documented in [OpenSteamTool PR #200](https://github.com/OpenSteam001/OpenSteamTool/pull/200). Downloads depend on this external service being available.

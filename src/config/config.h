@@ -7,6 +7,7 @@
 
 #define SX_CONFIG_MAX_DK       256
 #define SX_CONFIG_MAX_DEPOTS   64
+#define SX_CONFIG_ACH_ID       96
 
 typedef struct {
     int app_id;
@@ -14,12 +15,24 @@ typedef struct {
     int startup_app_id, overlay_app_id, input_app_id, stats_app_id;
 } sx_onlinefix_game_t;
 
+typedef struct {
+    int    app_id;
+    int    all;        // unlock every achievement in the schema
+    char **ids;        // otherwise, the selected achievement ids
+    int    id_count;
+    int    id_cap;
+} sx_ach_app_t;
+
 typedef struct sx_config {
     int  *app_ids;
     int   app_count;
 
     int  *package_ids;
     int   pkg_count;
+
+    // Per-app achievement spoofing selections.
+    sx_ach_app_t *ach_apps;
+    int           ach_app_count;
 
     struct {
         int app_id;
@@ -43,6 +56,10 @@ int sx_config_load(const char *path, sx_config_t *cfg);
 void sx_config_free(sx_config_t *cfg);
 int sx_config_has_app(sx_config_t *cfg, int app_id);
 int sx_config_has_package(sx_config_t *cfg, int package_id);
+int sx_config_wants_achievements(sx_config_t *cfg, int app_id);
+const sx_ach_app_t *sx_config_achievement_app(sx_config_t *cfg, int app_id);
+int sx_config_achievement_all(sx_config_t *cfg, int app_id);
+int sx_config_achievement_selected(sx_config_t *cfg, int app_id, const char *ach_id);
 int sx_config_app_depots(sx_config_t *cfg, int app_id, int *out, int max);
 int sx_config_get_depot_key_any(sx_config_t *cfg, int depot_id, char *key_out, size_t key_out_sz);
 

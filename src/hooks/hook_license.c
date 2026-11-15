@@ -2,6 +2,7 @@
 #include "hooks.h"
 #include "../config/config.h"
 #include "../core/reconcile.h"
+#include "../feats/achievements.h"
 #include "../feats/license.h"
 #include "../constants.h"
 #include "../steam_types.h"
@@ -18,6 +19,8 @@ static int hook_BLoggedOn(void *self) {
     SX_DBG("BLoggedOn: %d", result);
     if (result)
         sx_reconcile_set_login_observed();
+    if (result && sx_ach_spoof_enabled())
+        sx_ach_spoof_sync();
     return result;
 }
 

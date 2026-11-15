@@ -4,6 +4,7 @@ import Foundation
 enum SteamLibrary {
     private static let pathRe = try! NSRegularExpression(pattern: #""path"\s+"([^"]+)""#)
     private static let installDirRe = try! NSRegularExpression(pattern: #""installdir"\s+"([^"]+)""#)
+    private static let nameRe = try! NSRegularExpression(pattern: #""name"\s+"([^"]+)""#)
 
     static func installDir(appID: Int,
                            steamRoot: URL = Paths.steamRoot,
@@ -23,6 +24,30 @@ enum SteamLibrary {
             var isDir: ObjCBool = false
             if fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
                 return url
+            }
+        }
+        return nil
+    }
+
+    static func appID(named name: String) -> Int? {
+        let wanted = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !wanted.isEmpty else { return nil }
+        for root in libraryRoots() {
+            let steamapps = root.appendingPathComponent("steamapps", isDirectory: true)
+            guard let files = try? FileManager.default.contentsOfDirectory(
+                at: steamapps, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+            else { continue }
+            for file in files {
+                let component = file.lastPathComponent
+                guard component.hasPrefix("appmanifest_"), component.hasSuffix(".acf"),
+                      let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+                let ns = text as NSString
+                guard let match = nameRe.firstMatch(
+                    in: text, range: NSRange(location: 0, length: ns.length)) else { continue }
+                let appName = ns.substring(with: match.range(at: 1))
+                guard appName.caseInsensitiveCompare(wanted) == .orderedSame else { continue }
+                let number = component.dropFirst("appmanifest_".count).dropLast(".acf".count)
+                if let appID = Int(number) { return appID }
             }
         }
         return nil

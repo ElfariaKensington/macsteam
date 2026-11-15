@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "../config/config.h"
+#include "../feats/achievements.h"
 
 static int sx_reconcile_after_inject(void);
 static int sx_reconcile_run_pending_if_ready(void);
@@ -61,6 +62,23 @@ static atomic_flag g_refresh_lock = ATOMIC_FLAG_INIT;
 
 // Readers in other hooks take immutable atomic snapshots. Retired snapshots must
 // remain alive until Steam exits: freeing them here would race those readers.
+static int ach_config_equal(const sx_config_t *a, const sx_config_t *b) {
+    if (!a || !b || a->ach_app_count != b->ach_app_count) return 0;
+    for (int i = 0; i < a->ach_app_count; i++) {
+        const sx_ach_app_t *x = &a->ach_apps[i];
+        const sx_ach_app_t *y = sx_config_achievement_app((sx_config_t *)b, x->app_id);
+        if (!y || x->all != y->all || x->id_count != y->id_count) return 0;
+        for (int j = 0; j < x->id_count; j++) {
+            int found = 0;
+            for (int k = 0; k < y->id_count; k++) {
+                if (strcmp(x->ids[j], y->ids[k]) == 0) { found = 1; break; }
+            }
+            if (!found) return 0;
+        }
+    }
+    return 1;
+}
+
 static void live_reload_if_requested(void) {
     int changed = 0;
     if (g_reload_token < 0 || notify_check(g_reload_token, &changed) != NOTIFY_STATUS_OK || !changed)
@@ -92,6 +110,7 @@ static void live_reload_if_requested(void) {
         active->dk_count == next->dk_count && active->hide_whats_new == next->hide_whats_new &&
         (next->app_count == 0 || memcmp(active->app_ids, next->app_ids, sizeof(int) * next->app_count) == 0) &&
         (next->pkg_count == 0 || memcmp(active->package_ids, next->package_ids, sizeof(int) * next->pkg_count) == 0) &&
+        ach_config_equal(active, next) &&
         memcmp(active->depot_keys, next->depot_keys, sizeof(next->depot_keys[0]) * next->dk_count) == 0) {
         sx_config_free(next); free(next); next = active;
     } else {
@@ -101,6 +120,7 @@ static void live_reload_if_requested(void) {
     memcpy(g_refresh_request, request, len + 1);
     sx_reconcile_arm_after_inject();
     sx_reconcile_arm_library_refresh();
+    sx_ach_spoof_sync();
     SX_LOG("[hubcap] loaded %d apps for live library activation", next->app_count);
 }
 

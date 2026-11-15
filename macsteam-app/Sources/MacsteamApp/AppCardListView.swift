@@ -316,6 +316,11 @@ final class AppCardListView: NSObject, NSOutlineViewDataSource, NSOutlineViewDel
         return selected.sorted()
     }
 
+    @objc private func configureAchievements(_ sender: NSMenuItem) {
+        let id = sender.tag
+        AchievementPickerPresenter.present(appID: id, store: store, displayName: displayName(for: id))
+    }
+
     @objc private func configureOnlineFix(_ sender: NSMenuItem) {
         let id = sender.tag
         let options = store.config.onlineFixGames[id] ?? OnlineFixOptions()
@@ -423,6 +428,13 @@ extension AppCardListView: NSMenuDelegate {
 
         if rows.count == 1, let node = outline.item(atRow: rows[0]) as? AppNode,
            (1...0xffffff).contains(node.appID), node.appID != 480 {
+            let achievements = NSMenuItem(title: "Achievements…",
+                                          action: #selector(configureAchievements(_:)),
+                                          keyEquivalent: "")
+            achievements.target = self
+            achievements.tag = node.appID
+            menu.addItem(achievements)
+
             let onlineFix = NSMenuItem(title: "OnlineFix…", action: #selector(configureOnlineFix(_:)), keyEquivalent: "")
             onlineFix.target = self
             onlineFix.tag = node.appID

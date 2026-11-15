@@ -20,6 +20,11 @@ struct OnlineFixOptions: Equatable {
     var statsAppID = true
 }
 
+struct AchievementSelection: Equatable {
+    var all = false
+    var ids: [String] = []
+}
+
 struct MacsteamConfig: Equatable {
     var apps: [Int] = []
     var packageIds: [Int] = []
@@ -32,6 +37,7 @@ struct MacsteamConfig: Equatable {
     var hideWhatsNew = false
     var onlineFixGames: [Int: OnlineFixOptions] = [:]
     var hideCloudErrors = false
+    var achievementSpoof: [Int: AchievementSelection] = [:]
 }
 
 // MARK: - Helpers
@@ -74,6 +80,7 @@ extension MacsteamConfig {
         depotKeyGroups.removeAll { drop.contains($0.appID) }
         for id in drop {
             onlineFixGames[id] = nil
+            achievementSpoof[id] = nil
             appNames[id] = nil
             appParents[id] = nil
         }
@@ -93,18 +100,54 @@ extension MacsteamConfig {
         packageIds.append(pkgID)
         return true
     }
+
+    func achievementSelection(for appID: Int) -> AchievementSelection? {
+        achievementSpoof[appID]
+    }
+
+    func wantsAchievements(_ appID: Int) -> Bool {
+        achievementSpoof[appID] != nil
+    }
+
+    @discardableResult
+    mutating func setAchievementAll(_ appID: Int, enabled: Bool) -> Bool {
+        guard appID > 0 else { return false }
+        if enabled {
+            if achievementSpoof[appID]?.all == true { return false }
+            achievementSpoof[appID] = AchievementSelection(all: true)
+        } else {
+            guard achievementSpoof.removeValue(forKey: appID) != nil else { return false }
+        }
+        return true
+    }
+
+    @discardableResult
+    mutating func setAchievementIDs(_ appID: Int, _ ids: [String]) -> Bool {
+        guard appID > 0 else { return false }
+        let cleaned = Array(Set(ids.filter { !$0.isEmpty })).sorted()
+        if cleaned.isEmpty {
+            guard achievementSpoof.removeValue(forKey: appID) != nil else { return false }
+            achievementSpoof[appID] = nil
+        } else {
+            let next = AchievementSelection(all: false, ids: cleaned)
+            guard achievementSpoof[appID] != next else { return false }
+            achievementSpoof[appID] = next
+        }
+        return true
+    }
 }
 
 // MARK: - Parse (lenient reader of the config.c subset)
 
 extension MacsteamConfig {
-    enum Section { case none, apps, packages, depotKeys, onlineFix }
+    enum Section { case none, apps, packages, depotKeys, onlineFix, achievements }
 
     static func parse(_ text: String) -> MacsteamConfig {
         var cfg = MacsteamConfig()
         var section: Section = .none
         var currentDKApp: Int? = nil
         var currentOnlineFixApp: Int? = nil
+        var currentAchApp: Int? = nil
 
         for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
             let line = String(rawLine).replacingOccurrences(of: "\r", with: "")
@@ -117,10 +160,12 @@ extension MacsteamConfig {
                 section = .none
                 currentDKApp = nil
                 currentOnlineFixApp = nil
+                currentAchApp = nil
 
                 if t.hasPrefix("OnlineFix:") { section = .onlineFix; continue }
                 if t.hasPrefix("Apps:")           { section = .apps; continue }
                 if t.hasPrefix("PackageIds:")     { section = .packages; continue }
+                if t.hasPrefix("AchievementSpoof:") { section = .achievements; continue }
                 if t.hasPrefix("DepotKeys:")      { section = .depotKeys; continue }
 
                 if let (k, v) = Self.splitKV(t) {
@@ -154,6 +199,45 @@ extension MacsteamConfig {
                     }
                 }
                 continue
+            }
+
+            if section == .achievements {
+                if indent == 2 {
+                    currentAchApp = nil
+                    if t.first == "-" {
+                        let item = t.dropFirst().drop(while: { $0 == " " })
+                        let token = item.prefix { $0 != " " && $0 != "#" }
+                        if let id = Int(token), (1...0xffffff).contains(id) {
+                            cfg.achievementSpoof[id] = AchievementSelection(all: true)
+                        }
+                        continue
+                    }
+                    if let (k, v) = Self.splitKV(t), let id = Int(k),
+                       (1...0xffffff).contains(id) {
+                        if v.isEmpty {
+                            cfg.achievementSpoof[id] = AchievementSelection()
+                            currentAchApp = id
+                        } else if v.lowercased() == "all" || Self.parseBool(v) {
+                            cfg.achievementSpoof[id] = AchievementSelection(all: true)
+                        }
+                    }
+                    continue
+                }
+                if indent == 4, let id = currentAchApp, t.first == "-" {
+                    let item = t.dropFirst().drop(while: { $0 == " " })
+                    let token = item.prefix { $0 != " " && $0 != "#" }
+                    var ach = String(token)
+                    if ach.count >= 2,
+                       (ach.hasPrefix("\"") && ach.hasSuffix("\"")) ||
+                       (ach.hasPrefix("'") && ach.hasSuffix("'")) {
+                        ach = String(ach.dropFirst().dropLast())
+                    }
+                    guard !ach.isEmpty else { continue }
+                    var sel = cfg.achievementSpoof[id] ?? AchievementSelection()
+                    if !sel.all && !sel.ids.contains(ach) { sel.ids.append(ach) }
+                    cfg.achievementSpoof[id] = sel
+                    continue
+                }
             }
 
             if indent == 2 {
@@ -260,6 +344,20 @@ extension MacsteamConfig {
                     ("StartupAppID", o.startupAppID), ("OverlayAppID", o.overlayAppID),
                     ("InputAppID", o.inputAppID), ("StatsAppID", o.statsAppID)] {
                     out += "    \(key): \(value ? "yes" : "no")\n"
+                }
+            }
+            out += "\n"
+        }
+
+        if !achievementSpoof.isEmpty {
+            out += "AchievementSpoof:\n"
+            for id in achievementSpoof.keys.sorted() {
+                guard let sel = achievementSpoof[id] else { continue }
+                if sel.all {
+                    out += "  \(id): all\n"
+                } else if !sel.ids.isEmpty {
+                    out += "  \(id):\n"
+                    for ach in sel.ids.sorted() { out += "    - \(ach)\n" }
                 }
             }
             out += "\n"

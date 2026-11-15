@@ -51,6 +51,10 @@ targets:
               NSExceptionAllowsInsecureHTTPLoads: true
         SUFeedURL: "https://raw.githubusercontent.com/Selectively11/macsteam/main/appcast.xml"
         SUPublicEDKey: "rDOXzJ+vt12aWeu9hATgvz6q46MlRcgR4gbTfj5YuWQ="
+        CFBundleURLTypes:
+          - CFBundleURLName: com.macsteam.achievements
+            CFBundleURLSchemes:
+              - macsteam
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.macsteam.app
