@@ -171,6 +171,7 @@ void sx_ach_capture(const sx_bkv_node_t *cache_root,
             if (t->type != SX_BKV_INT) continue;
             uint32_t bit;
             if (!name_u32(t->name, &bit) || bit >= SX_ACH_MAX_BITS) continue;
+            if (out->time_count >= SX_ACH_MAX_BITS) break;
             int slot = out->time_count++;
             out->times[slot].bit = (int)bit;
             out->times[slot].time = t->v.i32;

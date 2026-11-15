@@ -154,9 +154,11 @@ final class PropertiesBridgePage {
 
     private func respond(to request: PropertiesAchievementRequest) async {
         let result = await handler.handle(request)
-        guard let data = try? JSONSerialization.data(withJSONObject: [
+        let payload: [Any] = [
             request.req, result.ok, result.message, result.data ?? NSNull()
-        ]), let arguments = String(data: data, encoding: .utf8) else { return }
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let arguments = String(data: data, encoding: .utf8) else { return }
         _ = try? await call("Runtime.evaluate", [
             "expression": "window.macsteamAchievementResult(...\(arguments))"
         ])

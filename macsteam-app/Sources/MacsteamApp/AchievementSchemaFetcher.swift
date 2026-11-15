@@ -132,11 +132,11 @@ final class AchievementSchemaFetcher {
                     continue
                 }
                 guard object["id"] as? Int == 1 else { continue }
-                if let error = object["error"] as? [String: Any] {
+                if object["error"] is [String: Any] {
                     return nil
                 }
                 guard let outer = object["result"] as? [String: Any] else { return nil }
-                if let exception = outer["exceptionDetails"] {
+                if outer["exceptionDetails"] != nil {
                     return nil
                 }
                 guard let remote = outer["result"] as? [String: Any] else { return nil }
