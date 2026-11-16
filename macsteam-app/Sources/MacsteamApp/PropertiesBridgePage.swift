@@ -489,16 +489,16 @@ final class SteamQueryCacheAchievementBridge {
     private var lastPayload: String?
     private var fileCache: [String: CachedStatsFile] = [:]
 
-    private func loadEarnedMap() -> [String: [String: Int]] {
+    private func loadEarnedMap() -> [String: [String: [String: Int]]] {
         let statsDir = Paths.steamRoot.appendingPathComponent("appcache/stats")
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: statsDir.path) else {
             return [:]
         }
-        var result: [String: [String: Int]] = [:]
+        var result: [String: [String: [String: Int]]] = [:]
         for name in names where name.hasPrefix("UserGameStats_") && name.hasSuffix(".bin") && !name.hasPrefix("UserGameStatsSchema_") {
             let stem = String(name.dropFirst("UserGameStats_".count).dropLast(".bin".count))
             let parts = stem.split(separator: "_")
-            guard parts.count == 2, UInt64(parts[0]) != nil, let appID = Int(parts[1]), appID > 0 else { continue }
+            guard parts.count == 2, let accountID = UInt64(parts[0]), let appID = Int(parts[1]), appID > 0 else { continue }
 
             let url = statsDir.appendingPathComponent(name)
             let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
@@ -513,12 +513,10 @@ final class SteamQueryCacheAchievementBridge {
                 fileCache[name] = CachedStatsFile(mtime: mtime, size: size, earned: earned)
             }
             if !earned.isEmpty {
-                let key = String(appID)
-                var merged = result[key] ?? [:]
-                for (id, ts) in earned {
-                    merged[id] = max(merged[id] ?? 0, ts)
-                }
-                result[key] = merged
+                let acctKey = String(accountID)
+                var byApp = result[acctKey] ?? [:]
+                byApp[String(appID)] = earned
+                result[acctKey] = byApp
             }
         }
         return result
@@ -544,24 +542,23 @@ final class SteamQueryCacheAchievementBridge {
     }
 
     func sync(targetID: String, endpoint: URL, session: URLSession) async {
-        let spoofMap = SharedContextAchievementBridge.loadSpoofMap(from: Paths.configFile)
-        let earnedMap = loadEarnedMap()
-        var combined: [String: Any] = [:]
-        for (appKey, earned) in earnedMap {
-            combined[appKey] = earned
-        }
-        for (appKey, val) in spoofMap {
-            if let s = val as? String, s == "all" {
-                combined[appKey] = "all"
-            } else if let ids = val as? [String] {
-                var merged = (combined[appKey] as? [String: Int]) ?? [:]
-                for id in ids where merged[id] == nil {
-                    merged[id] = 0
-                }
-                combined[appKey] = merged
+        let cfg = (try? String(contentsOf: Paths.configFile, encoding: .utf8)).map(MacsteamConfig.parse) ?? MacsteamConfig()
+        var spoofMap: [String: Any] = [:]
+        for (appID, sel) in cfg.achievementSpoof {
+            if sel.all {
+                spoofMap[String(appID)] = "all"
+            } else if !sel.ids.isEmpty {
+                spoofMap[String(appID)] = sel.ids
             }
         }
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: combined),
+        let configuredApps = Set(cfg.apps).union(cfg.achievementSpoof.keys).sorted().map(String.init)
+        let earnedByAcct = loadEarnedMap()
+        let payloadObj: [String: Any] = [
+            "configured": configuredApps,
+            "spoof": spoofMap,
+            "earned": earnedByAcct,
+        ]
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: payloadObj),
               let json = String(data: jsonData, encoding: .utf8) else { return }
         if self.targetID == targetID && self.lastPayload == json {
             return
@@ -569,7 +566,10 @@ final class SteamQueryCacheAchievementBridge {
 
         let expression = """
         (() => {
-          window.__macsteamAchEarned = \(json);
+          const payload = \(json);
+          window.__macsteamAchConfigured = payload.configured || [];
+          window.__macsteamAchSpoofMap = payload.spoof || {};
+          window.__macsteamAchEarnedByAcct = payload.earned || {};
           window.__macsteamAchAdded = window.__macsteamAchAdded || {};
           const findQC = () => {
             if (window.__macsteamQC && typeof window.__macsteamQC.getQueryCache === "function") return window.__macsteamQC;
@@ -607,10 +607,19 @@ final class SteamQueryCacheAchievementBridge {
             const user = userQ && userQ.state && userQ.state.data;
             if (!schema || !user) return;
 
-            const entry = (window.__macsteamAchEarned || {})[strId];
-            const all = entry === "all";
-            const times = (!entry || all) ? null : entry;
+            const configuredSet = new Set(window.__macsteamAchConfigured || []);
+            let acctId = null;
+            if (user.steamid) {
+              try { acctId = (BigInt(user.steamid) - 76561197960265728n).toString(); } catch {}
+            }
+            const spoofEntry = (window.__macsteamAchSpoofMap || {})[strId];
+            const acctEarned = acctId ? ((window.__macsteamAchEarnedByAcct || {})[acctId] || {})[strId] : null;
             const added = window.__macsteamAchAdded[strId] || {};
+            const isConfigured = configuredSet.has(strId);
+            if (!spoofEntry && !acctEarned && !isConfigured && Object.keys(added).length === 0) return;
+
+            const spoofAll = spoofEntry === "all";
+            const spoofSet = Array.isArray(spoofEntry) ? new Set(spoofEntry) : null;
             const prevAch = user.achievements || {};
             const nextAch = { ...prevAch };
             const now = Math.floor(Date.now() / 1000);
@@ -619,12 +628,13 @@ final class SteamQueryCacheAchievementBridge {
             const wantKeys = new Set();
             for (const g of schema.groups || []) {
               for (const a of g.achievements || []) {
-                const hit = entry && (all || Object.prototype.hasOwnProperty.call(times, a.api_name));
-                if (hit) {
+                const earnedHit = acctEarned && Object.prototype.hasOwnProperty.call(acctEarned, a.api_name);
+                const spoofHit = spoofAll || (spoofSet && spoofSet.has(a.api_name));
+                if (earnedHit || spoofHit) {
                   const k = String(a.internal_key);
                   wantKeys.add(k);
                   if (!nextAch[k] || !nextAch[k].unlocked) {
-                    const t = times && times[a.api_name] ? times[a.api_name] : now;
+                    const t = (earnedHit && acctEarned[a.api_name]) ? acctEarned[a.api_name] : now;
                     nextAch[k] = { internal_key: a.internal_key, unlocked: true, unlock_time: t };
                     added[k] = true;
                     changed = true;
@@ -640,9 +650,35 @@ final class SteamQueryCacheAchievementBridge {
               }
             }
             window.__macsteamAchAdded[strId] = added;
+
+            const prevGroups = user.groups || {};
+            const nextGroups = { ...prevGroups };
+            for (const g of schema.groups || []) {
+              const gid = String(g.id);
+              const achs = g.achievements || [];
+              let completed = 0;
+              for (const a of achs) {
+                const entry = nextAch[String(a.internal_key)];
+                if (entry && entry.unlocked) completed++;
+              }
+              const isComp = achs.length > 0 && completed >= achs.length;
+              const prevG = prevGroups[gid] || { groupid: g.id };
+              const wantAchievable = Boolean(prevG.is_achievable) || isConfigured || g.dlcappid === 0 || (g.dlcappid > 0 && configuredSet.has(String(g.dlcappid))) || completed > 0 || Boolean(spoofEntry);
+              if (!prevGroups[gid] || prevG.is_achievable !== wantAchievable || prevG.completed_achievements !== completed || prevG.is_completed !== isComp) {
+                nextGroups[gid] = {
+                  ...prevG,
+                  groupid: g.id,
+                  is_achievable: wantAchievable,
+                  completed_achievements: completed,
+                  is_completed: isComp,
+                };
+                changed = true;
+              }
+            }
+
             if (changed) {
               window.__macsteamQApplying = true;
-              try { qc.setQueryData(userQ.queryKey, { ...user, achievements: nextAch }); }
+              try { qc.setQueryData(userQ.queryKey, { ...user, achievements: nextAch, groups: nextGroups }); }
               finally { window.__macsteamQApplying = false; }
             }
           };
@@ -662,9 +698,13 @@ final class SteamQueryCacheAchievementBridge {
           }
 
           const ids = new Set([
-            ...Object.keys(window.__macsteamAchEarned || {}),
+            ...(window.__macsteamAchConfigured || []),
+            ...Object.keys(window.__macsteamAchSpoofMap || {}),
             ...Object.keys(window.__macsteamAchAdded || {}),
           ]);
+          for (const acct of Object.values(window.__macsteamAchEarnedByAcct || {})) {
+            for (const id of Object.keys(acct || {})) ids.add(id);
+          }
           for (const id of ids) applyForApp(id);
           return "installed";
         })()
