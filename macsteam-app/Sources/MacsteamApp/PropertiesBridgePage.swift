@@ -1,5 +1,6 @@
 // CDP bridge for the achievements tab in Steam's game-properties window.
 import AppKit
+import Darwin
 import Foundation
 
 struct PropertiesAchievementRequest: Decodable {
@@ -191,6 +192,11 @@ final class PropertiesAchievementHandler {
             do {
                 definitions = try AchievementCatalog.load(appID: appID)
             } catch {
+                if await schemaFetcher.storeHasAchievements(appID: appID) == false {
+                    return Result(ok: false,
+                                  message: "This game does not have Steam achievements.",
+                                  data: nil)
+                }
                 if await schemaFetcher.ensureSchema(appID: appID),
                    let loaded = try? AchievementCatalog.load(appID: appID) {
                     definitions = loaded
@@ -227,6 +233,11 @@ final class PropertiesAchievementHandler {
             do {
                 definitions = try AchievementCatalog.load(appID: appID)
             } catch {
+                if await schemaFetcher.storeHasAchievements(appID: appID) == false {
+                    return Result(ok: false,
+                                  message: "This game does not have Steam achievements.",
+                                  data: nil)
+                }
                 if await schemaFetcher.ensureSchema(appID: appID),
                    let loaded = try? AchievementCatalog.load(appID: appID) {
                     definitions = loaded
@@ -246,7 +257,8 @@ final class PropertiesAchievementHandler {
                               message: "No achievements are selected. Use Manage Achievements first.",
                               data: nil)
             }
-            let upload = await SteamAchievementUploader.upload(appID: appID, ids: ids)
+            let upload = await SteamAchievementUploader.upload(
+                appID: appID, ids: ids, allIDs: definitions.map(\.id))
             return Result(ok: upload.ok, message: upload.message, data: nil)
 
         case "clear":
@@ -303,7 +315,8 @@ final class PropertiesAchievementHandler {
                 }
 
                 if request.upload == true && !chosen.isEmpty {
-                    let upload = await SteamAchievementUploader.upload(appID: appID, ids: chosen)
+                    let upload = await SteamAchievementUploader.upload(
+                        appID: appID, ids: chosen, allIDs: definitions.map(\.id))
                     message = upload.message
                     return Result(ok: upload.ok, message: message, data: nil)
                 }
@@ -335,20 +348,35 @@ final class SharedContextAchievementBridge {
     private var lastPayload: String?
 
     func sync(targetID: String, endpoint: URL, session: URLSession) async {
-        let map = Self.loadSpoofMap(from: Paths.configFile)
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: map),
-              let json = String(data: jsonData, encoding: .utf8) else { return }
-        if self.targetID == targetID && self.lastPayload == json {
+        let cfg = (try? String(contentsOf: Paths.configFile, encoding: .utf8))
+            .map(MacsteamConfig.parse) ?? MacsteamConfig()
+        let spoof = Self.loadSpoofMap(from: cfg)
+        // Achievements macSteam unlocked that the current selection no longer
+        // includes. Steam may still have the old values in memory, so keep them
+        // hidden until the next Steam start verifies the restored stats cache.
+        let hidden = AchievementSpoofState.suppressedAchievements(
+            selections: cfg.achievementSpoof)
+        guard let spoofData = try? JSONSerialization.data(withJSONObject: spoof),
+              let spoofJSON = String(data: spoofData, encoding: .utf8),
+              let hiddenData = try? JSONSerialization.data(withJSONObject: hidden),
+              let hiddenJSON = String(data: hiddenData, encoding: .utf8),
+              let signatureData = try? JSONSerialization.data(
+                  withJSONObject: ["spoof": spoof, "hidden": hidden]),
+              let signature = String(data: signatureData, encoding: .utf8) else { return }
+        if self.targetID == targetID && self.lastPayload == signature {
             return
         }
 
         let expression = """
         (() => {
-          window.__macsteamAchSpoof = \(json);
+          window.__macsteamAchSpoof = \(spoofJSON);
+          window.__macsteamAchHidden = \(hiddenJSON);
           window.__macsteamAchCache = {};
           const refreshDetails = (appid) => {
             const key = String(appid);
-            if (!window.__macsteamAchSpoof || !window.__macsteamAchSpoof[key]) return;
+            const hasSpoof = window.__macsteamAchSpoof && window.__macsteamAchSpoof[key];
+            const hasHidden = window.__macsteamAchHidden && window.__macsteamAchHidden[key];
+            if (!hasSpoof && !hasHidden) return;
             if (window.__macsteamAchPending && window.__macsteamAchPending[key]) return;
             window.__macsteamAchPending = window.__macsteamAchPending || {};
             window.__macsteamAchPending[key] = true;
@@ -376,15 +404,28 @@ final class SharedContextAchievementBridge {
             const orig = SteamClient.Apps.GetMyAchievementsForApp.bind(SteamClient.Apps);
             SteamClient.Apps.GetMyAchievementsForApp = async function(appid) {
               const res = await orig(appid);
-              const spoof = (window.__macsteamAchSpoof || {})[String(appid)];
-              if (!spoof || !res || !res.data || !Array.isArray(res.data.rgAchievements)) return res;
+              const key = String(appid);
+              const spoof = (window.__macsteamAchSpoof || {})[key];
+              const hidden = (window.__macsteamAchHidden || {})[key];
+              if ((!spoof && !hidden) || !res || !res.data || !Array.isArray(res.data.rgAchievements)) return res;
               const all = spoof === "all";
-              const set = all ? null : new Set(spoof);
+              const set = all ? null : (Array.isArray(spoof) ? new Set(spoof) : null);
               const now = Math.floor(Date.now() / 1000);
-              for (const a of res.data.rgAchievements) {
-                if (all || set.has(a.strID)) {
-                  a.bAchieved = true;
-                  if (!a.rtUnlocked) a.rtUnlocked = now;
+              if (spoof) {
+                for (const a of res.data.rgAchievements) {
+                  if (all || (set && set.has(a.strID))) {
+                    a.bAchieved = true;
+                    if (!a.rtUnlocked) a.rtUnlocked = now;
+                  }
+                }
+              }
+              if (Array.isArray(hidden) && hidden.length) {
+                const hiddenSet = new Set(hidden);
+                for (const a of res.data.rgAchievements) {
+                  if (hiddenSet.has(a.strID)) {
+                    a.bAchieved = false;
+                    a.rtUnlocked = 0;
+                  }
                 }
               }
               return res;
@@ -397,7 +438,8 @@ final class SharedContextAchievementBridge {
               const res = origGetAch(appid);
               const key = String(appid);
               const spoof = (window.__macsteamAchSpoof || {})[key];
-              if (!spoof) return res;
+              const hidden = (window.__macsteamAchHidden || {})[key];
+              if (!spoof && !hidden) return res;
               const cached = window.__macsteamAchCache && window.__macsteamAchCache[key];
               if (cached) return cached;
               refreshDetails(appid);
@@ -410,27 +452,31 @@ final class SharedContextAchievementBridge {
             appAchievementProgressCache.GetAchievementProgress = function(appid) {
               const key = String(appid);
               const spoof = (window.__macsteamAchSpoof || {})[key];
-              if (!spoof) return origProg(appid);
-              if (spoof === "all") return 100;
+              const hidden = (window.__macsteamAchHidden || {})[key];
+              if (!spoof && !hidden) return origProg(appid);
+              if (spoof === "all" && !hidden) return 100;
               const cached = window.__macsteamAchCache && window.__macsteamAchCache[key];
               if (cached && cached.nTotal > 0) return Math.round((cached.nAchieved / cached.nTotal) * 100);
               refreshDetails(appid);
               return origProg(appid);
             };
           }
-          for (const appid of Object.keys(window.__macsteamAchSpoof || {})) refreshDetails(appid);
+          const ids = new Set([
+            ...Object.keys(window.__macsteamAchSpoof || {}),
+            ...Object.keys(window.__macsteamAchHidden || {}),
+          ]);
+          for (const appid of ids) refreshDetails(appid);
           return (window.__macsteamAchDetailsPatched && window.__macsteamAchProgPatched) ? "installed" : "updated";
         })()
         """
 
         if await Self.evaluateStatus(expression: expression, endpoint: endpoint, session: session) == "installed" {
             self.targetID = targetID
-            self.lastPayload = json
+            self.lastPayload = signature
         }
     }
 
-    static func loadSpoofMap(from configURL: URL) -> [String: Any] {
-        let cfg = (try? String(contentsOf: configURL, encoding: .utf8)).map(MacsteamConfig.parse) ?? MacsteamConfig()
+    static func loadSpoofMap(from cfg: MacsteamConfig) -> [String: Any] {
         var map: [String: Any] = [:]
         for (appID, sel) in cfg.achievementSpoof {
             if sel.all {
@@ -480,8 +526,9 @@ final class SharedContextAchievementBridge {
 @MainActor
 final class SteamQueryCacheAchievementBridge {
     private struct CachedStatsFile {
-        let mtime: Date?
-        let size: Int?
+        let mtimeSeconds: Int64
+        let mtimeNanoseconds: Int64
+        let size: Int
         let earned: [String: Int]
     }
 
@@ -501,16 +548,24 @@ final class SteamQueryCacheAchievementBridge {
             guard parts.count == 2, let accountID = UInt64(parts[0]), let appID = Int(parts[1]), appID > 0 else { continue }
 
             let url = statsDir.appendingPathComponent(name)
-            let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
-            let mtime = attrs?[.modificationDate] as? Date
-            let size = attrs?[.size] as? Int
+            var info = stat()
+            guard lstat(url.path, &info) == 0 else { continue }
+            let mtimeSeconds = Int64(info.st_mtimespec.tv_sec)
+            let mtimeNanoseconds = Int64(info.st_mtimespec.tv_nsec)
+            let size = Int(info.st_size)
 
             let earned: [String: Int]
-            if let cached = fileCache[name], cached.mtime == mtime, cached.size == size {
+            if let cached = fileCache[name],
+               cached.mtimeSeconds == mtimeSeconds,
+               cached.mtimeNanoseconds == mtimeNanoseconds,
+               cached.size == size {
                 earned = cached.earned
             } else {
                 earned = Self.parseStatsFile(url: url, appID: appID)
-                fileCache[name] = CachedStatsFile(mtime: mtime, size: size, earned: earned)
+                fileCache[name] = CachedStatsFile(mtimeSeconds: mtimeSeconds,
+                                                  mtimeNanoseconds: mtimeNanoseconds,
+                                                  size: size,
+                                                  earned: earned)
             }
             if !earned.isEmpty {
                 let acctKey = String(accountID)
@@ -552,10 +607,13 @@ final class SteamQueryCacheAchievementBridge {
             }
         }
         let configuredApps = Set(cfg.apps).union(cfg.achievementSpoof.keys).sorted().map(String.init)
+        let hidden = AchievementSpoofState.suppressedAchievements(
+            selections: cfg.achievementSpoof)
         let earnedByAcct = loadEarnedMap()
         let payloadObj: [String: Any] = [
             "configured": configuredApps,
             "spoof": spoofMap,
+            "hidden": hidden,
             "earned": earnedByAcct,
         ]
         guard let jsonData = try? JSONSerialization.data(withJSONObject: payloadObj),
@@ -569,6 +627,7 @@ final class SteamQueryCacheAchievementBridge {
           const payload = \(json);
           window.__macsteamAchConfigured = payload.configured || [];
           window.__macsteamAchSpoofMap = payload.spoof || {};
+          window.__macsteamAchHiddenMap = payload.hidden || {};
           window.__macsteamAchEarnedByAcct = payload.earned || {};
           window.__macsteamAchAdded = window.__macsteamAchAdded || {};
           const findQC = () => {
@@ -613,10 +672,12 @@ final class SteamQueryCacheAchievementBridge {
               try { acctId = (BigInt(user.steamid) - 76561197960265728n).toString(); } catch {}
             }
             const spoofEntry = (window.__macsteamAchSpoofMap || {})[strId];
+            const hiddenEntry = (window.__macsteamAchHiddenMap || {})[strId];
+            const hiddenSet = Array.isArray(hiddenEntry) ? new Set(hiddenEntry) : null;
             const acctEarned = acctId ? ((window.__macsteamAchEarnedByAcct || {})[acctId] || {})[strId] : null;
             const added = window.__macsteamAchAdded[strId] || {};
             const isConfigured = configuredSet.has(strId);
-            if (!spoofEntry && !acctEarned && !isConfigured && Object.keys(added).length === 0) return;
+            if (!spoofEntry && !acctEarned && !isConfigured && !hiddenSet && Object.keys(added).length === 0) return;
 
             const spoofAll = spoofEntry === "all";
             const spoofSet = Array.isArray(spoofEntry) ? new Set(spoofEntry) : null;
@@ -628,10 +689,20 @@ final class SteamQueryCacheAchievementBridge {
             const wantKeys = new Set();
             for (const g of schema.groups || []) {
               for (const a of g.achievements || []) {
+                const k = String(a.internal_key);
+                const hiddenHit = hiddenSet && hiddenSet.has(a.api_name);
+                if (hiddenHit) {
+                  // macSteam unlocked this one earlier and it is no longer
+                  // selected. Steam may still cache it as unlocked.
+                  if (nextAch[k]) {
+                    delete nextAch[k];
+                    changed = true;
+                  }
+                  continue;
+                }
                 const earnedHit = acctEarned && Object.prototype.hasOwnProperty.call(acctEarned, a.api_name);
                 const spoofHit = spoofAll || (spoofSet && spoofSet.has(a.api_name));
                 if (earnedHit || spoofHit) {
-                  const k = String(a.internal_key);
                   wantKeys.add(k);
                   if (!nextAch[k] || !nextAch[k].unlocked) {
                     const t = (earnedHit && acctEarned[a.api_name]) ? acctEarned[a.api_name] : now;
@@ -700,6 +771,7 @@ final class SteamQueryCacheAchievementBridge {
           const ids = new Set([
             ...(window.__macsteamAchConfigured || []),
             ...Object.keys(window.__macsteamAchSpoofMap || {}),
+            ...Object.keys(window.__macsteamAchHiddenMap || {}),
             ...Object.keys(window.__macsteamAchAdded || {}),
           ]);
           for (const acct of Object.values(window.__macsteamAchEarnedByAcct || {})) {

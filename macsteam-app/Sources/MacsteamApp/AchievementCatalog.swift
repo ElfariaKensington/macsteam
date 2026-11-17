@@ -223,7 +223,7 @@ final class AchievementPicker: NSObject, NSTableViewDataSource, NSTableViewDeleg
     private var selected: Set<String>
     private let countLabel = NSTextField(labelWithString: "")
     private let uploadCheckbox = NSButton(
-        checkboxWithTitle: "Upload to Steam profile (owned games only)",
+        checkboxWithTitle: "Sync selection to Steam profile (owned games only)",
         target: nil, action: nil)
     private let tableView = NSTableView()
 
@@ -286,8 +286,8 @@ final class AchievementPicker: NSObject, NSTableViewDataSource, NSTableViewDeleg
 
         uploadCheckbox.frame = NSRect(x: 2, y: 2, width: 456, height: 18)
         uploadCheckbox.font = Typography.caption
-        uploadCheckbox.toolTip = "Stores the selected achievements on your Steam account. "
-            + "Only games you own can be published."
+        uploadCheckbox.toolTip = "Sets the selected achievements on your Steam account and locks "
+            + "the ones you leave unselected. Only games you own can be published."
 
         view.addSubview(scroll)
         view.addSubview(uploadCheckbox)

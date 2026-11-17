@@ -314,9 +314,11 @@ static void test_config_parse(void) {
 }
 
 static void test_full_cycle(void) {
-    char schema_path[1200], cache_path[1200];
+    char schema_path[1200], cache_path[1200], state_path[1200];
     snprintf(schema_path, sizeof(schema_path), "%s/UserGameStatsSchema_123.bin", g_stats);
     snprintf(cache_path, sizeof(cache_path), "%s/UserGameStats_42_123.bin", g_stats);
+    snprintf(state_path, sizeof(state_path),
+             "%s/Library/Application Support/macsteam/achievement-spoof.state", g_home);
 
     sx_bkv_node_t *schema = build_schema();
     write_blob(schema_path, schema);
@@ -354,6 +356,21 @@ static void test_full_cycle(void) {
     assert(root_int(after, "crc") == (int32_t)0x11223344u);
     sx_bkv_free(after);
 
+    // The journal records every bit that was spoofed, including the stat id and
+    // the trailing mask, so the UI can hide them after a clear.
+    {
+        char text[4096] = {0};
+        FILE *sf = fopen(state_path, "r");
+        assert(sf);
+        size_t n = fread(text, 1, sizeof(text) - 1, sf);
+        text[n] = '\0';
+        fclose(sf);
+        assert(strstr(text, "123 42 0 "));
+        assert(strstr(text, "00000001"));
+        assert(strstr(text, "123 42 3 "));
+        assert(strstr(text, "00000200"));
+    }
+
     // Change the selection to a different achievement in the same stat.
     static char *picked2[] = {(char *)"ACH_B"};
     app.ids = picked2;
@@ -382,9 +399,41 @@ static void test_full_cycle(void) {
     assert(node_int(after, "9", "data") == 42);
     sx_bkv_free(after);
 
-    char state_path[1200];
-    snprintf(state_path, sizeof(state_path),
-             "%s/Library/Application Support/macsteam/achievement-spoof.state", g_home);
+    // The snapshot must survive the clear: Steam writes its in-memory copy back
+    // when it exits, so the restore is verified on the next start.
+    assert(access(state_path, F_OK) == 0);
+
+    // Simulate Steam flushing the stale, spoofed stats back over the cache.
+    sx_bkv_node_t *stale = read_blob(cache_path);
+    assert(stale);
+    assert(sx_bkv_set_int(sx_bkv_ensure_section(stale, "0"), "data", 0x3));
+    assert(sx_bkv_set_int(sx_bkv_ensure_section(stale, "3"), "data", 0x200));
+    write_blob(cache_path, stale);
+    sx_bkv_free(stale);
+
+    // Re-enable before the restart. The retained snapshot must still describe
+    // the pre-spoof state, so the stale bits do not become the new "original".
+    app.ids = picked; app.id_count = 2; cfg.ach_app_count = 1;
+    sx_ach_spoof_sync();
+    after = read_blob(cache_path);
+    assert(node_int(after, "0", "data") == 0x1);
+    assert(node_int(after, "3", "data") == 0x200);
+    sx_bkv_free(after);
+
+    cfg.ach_app_count = 0;
+    sx_ach_spoof_sync();
+    after = read_blob(cache_path);
+    assert(node_int(after, "0", "data") == 0);
+    assert(sx_bkv_child(after, "3") == NULL);
+    sx_bkv_free(after);
+
+    // Simulate the next Steam start. The cache is re-restored before Steam
+    // reads it, and only then is the snapshot released.
+    sx_ach_spoof_startup_sync();
+    after = read_blob(cache_path);
+    assert(node_int(after, "0", "data") == 0);
+    assert(sx_bkv_child(after, "3") == NULL);
+    sx_bkv_free(after);
     assert(access(state_path, F_OK) != 0);
 }
 
@@ -430,6 +479,14 @@ static void test_create_missing_cache(void) {
     assert(sx_bkv_child(cache, "0") == NULL);
     assert(sx_bkv_child(cache, "3") == NULL);
     sx_bkv_free(cache);
+
+    char state_path[1200];
+    snprintf(state_path, sizeof(state_path),
+             "%s/Library/Application Support/macsteam/achievement-spoof.state", g_home);
+    assert(access(state_path, F_OK) == 0);
+
+    sx_ach_spoof_startup_sync();
+    assert(access(state_path, F_OK) != 0);
 }
 
 int main(void) {

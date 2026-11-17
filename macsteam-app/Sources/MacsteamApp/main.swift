@@ -2,10 +2,12 @@ import AppKit
 import Dispatch
 import Darwin
 
-if CommandLine.arguments.contains("--hubcap-store-bridge") {
+if let bridgeIndex = CommandLine.arguments.firstIndex(of: "--hubcap-store-bridge") {
     // Do not create NSApplication here: registering the invisible helper with
     // Launch Services makes it look like the config window is already open.
-    let bridge = HubcapStoreBridge()
+    let nonce = CommandLine.arguments.count > bridgeIndex + 1
+        ? CommandLine.arguments[bridgeIndex + 1] : ""
+    let bridge = HubcapStoreBridge(launchNonce: nonce)
     Task { await bridge.run(); exit(EXIT_SUCCESS) }
     dispatchMain()
 } else {

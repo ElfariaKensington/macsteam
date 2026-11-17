@@ -47,7 +47,7 @@
     done([!!ok, String(message || ""), data || null]);
   };
 
-  function send(payload) {
+  function send(payload, timeout = 15000) {
     return new Promise((resolve) => {
       const request = String(++sequence);
       pending.set(request, resolve);
@@ -60,7 +60,7 @@
       }
       setTimeout(() => {
         if (pending.delete(request)) resolve([false, "macSteam did not respond.", null]);
-      }, 15000);
+      }, timeout);
     });
   }
 
@@ -82,17 +82,21 @@
     toastTimer = setTimeout(() => { el.style.opacity = "0"; }, 4600);
   }
 
-  function leafWithText(text) {
-    return [...document.querySelectorAll("div,span,button,a")]
-      .find((el) => el.children.length === 0 && el.textContent.trim() === text);
-  }
-
   const SIDEBAR_LABELS = ["General", "Compatibility", "Updates", "Installed Files",
     "Game Versions & Betas", "Controller", "Game Recording", "Privacy", "Customization"];
 
-  function sidebarRow(text) {
-    const leaf = leafWithText(text);
-    if (!leaf) return null;
+  function leafIndex() {
+    const index = new Map();
+    for (const el of document.querySelectorAll("div,span,button,a")) {
+      if (el.children.length !== 0) continue;
+      const text = el.textContent.trim();
+      if (!text || index.has(text)) continue;
+      index.set(text, el);
+    }
+    return index;
+  }
+
+  function sidebarRowFrom(leaf) {
     let node = leaf;
     for (let depth = 0; depth < 6 && node; depth++) {
       const rect = node.getBoundingClientRect();
@@ -107,11 +111,21 @@
     return null;
   }
 
+  function sidebarRows() {
+    const leaves = leafIndex();
+    const rows = [];
+    for (const label of SIDEBAR_LABELS) {
+      const leaf = leaves.get(label);
+      if (!leaf) continue;
+      const row = sidebarRowFrom(leaf);
+      if (row) rows.push(row);
+    }
+    return rows;
+  }
+
   function sidebarAnchor() {
     let anchor = null;
-    for (const label of SIDEBAR_LABELS) {
-      const row = sidebarRow(label);
-      if (!row) continue;
+    for (const row of sidebarRows()) {
       if (!anchor || row.rect.bottom > anchor.rect.bottom) anchor = row;
     }
     return anchor;
@@ -151,7 +165,7 @@
 
   function decorateTab() {
     const anchor = sidebarAnchor();
-    if (!anchor || !(document.title || "").trim()) {
+    if (!anchor) {
       hideTab();
       if (panelActive) hidePanel();
       return;
@@ -190,7 +204,6 @@
   let panelBoxes = [];
   let panelList = null;
   let panelCount = null;
-  let panelUpload = null;
   let panelSelectAll = null;
   let panelSelectNone = null;
   let panelClear = null;
@@ -218,9 +231,7 @@
   }
 
   function selectedSidebarRow() {
-    for (const label of SIDEBAR_LABELS) {
-      const row = sidebarRow(label);
-      if (!row) continue;
+    for (const row of sidebarRows()) {
       const background = getComputedStyle(row.node).backgroundColor;
       if (background && background !== "transparent" && background !== "rgba(0, 0, 0, 0)") {
         return { node: row.node, background };
@@ -270,7 +281,6 @@
       control.style.opacity = busy ? ".55" : "1";
       control.style.cursor = busy ? "default" : "pointer";
     }
-    if (panelUpload) panelUpload.disabled = busy;
   }
 
   function updatePanelCount() {
@@ -346,20 +356,27 @@
     updatePanelCount();
   }
 
+  let panelTitleTimer = 0;
+
   async function loadPanel() {
+    clearTimeout(panelTitleTimer);
     const title = (document.title || "").trim();
-    if (!title) return;
+    if (!title) {
+      // The sidebar renders before Steam fills in the window title. Wait for it
+      // instead of leaving the pane stuck on "Loading achievements…".
+      if (panelActive) panelTitleTimer = setTimeout(loadPanel, 150);
+      return;
+    }
 
     panelAppID = 0;
     panelAchievements = [];
     panelSelection = new Set();
     panelBoxes = [];
-    panelUpload.checked = false;
     updatePanelCount();
     showPanelMessage("Loading achievements…");
     setPanelBusy(true);
 
-    const [ok, message, data] = await send({ action: "list", title });
+    const [ok, message, data] = await send({ action: "list", title }, 60000);
     if (!panelActive || (document.title || "").trim() !== title) {
       setPanelBusy(false);
       return;
@@ -391,14 +408,14 @@
     }
 
     const label = source.textContent;
-    source.textContent = upload ? "Uploading…" : "Saving…";
+    source.textContent = upload ? "Syncing…" : "Saving…";
     setPanelBusy(true);
     const [ok, message] = await send({
       action: "save",
       appid: panelAppID,
       ids: [...panelSelection],
       upload: !!upload,
-    });
+    }, upload ? 60000 : 20000);
     setPanelBusy(false);
     source.textContent = label;
     toast(message || (ok ? "Saved and applied."
@@ -422,7 +439,6 @@
     if (ok) {
       panelSelection.clear();
       panelBoxes.forEach((box) => { box.checked = false; });
-      panelUpload.checked = false;
       updatePanelCount();
     }
   }
@@ -443,7 +459,8 @@
 
     const intro = document.createElement("div");
     intro.textContent = "Choose the achievements to mark as unlocked. " +
-      "Changes are stored in Steam's local stats cache.";
+      "Changes are stored in Steam's local stats cache. " +
+      "Sync Profile also locks the achievements you leave unselected on your Steam profile.";
     intro.style.cssText = "font-size:13px;color:#8b929a;line-height:1.45;" +
       "margin:0 0 12px;max-width:620px;";
     panel.appendChild(intro);
@@ -480,28 +497,15 @@
     const footer = document.createElement("div");
     footer.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:12px;";
 
-    const uploadGroup = document.createElement("div");
-    uploadGroup.style.cssText = "display:flex;align-items:center;gap:6px;margin-right:auto;min-width:0;";
-    panelUpload = document.createElement("input");
-    panelUpload.type = "checkbox";
-    panelUpload.id = "macsteam-properties-upload";
-    panelUpload.style.cssText = "flex:none;margin:0;accent-color:#66c0f4;";
-    const uploadLabel = document.createElement("label");
-    uploadLabel.htmlFor = panelUpload.id;
-    uploadLabel.textContent = "Upload to Steam profile (owned games only)";
-    uploadLabel.style.cssText = "font-size:12px;color:#8b929a;cursor:pointer;" +
-      "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
-    uploadGroup.appendChild(panelUpload);
-    uploadGroup.appendChild(uploadLabel);
-
     panelClear = smallButton("Clear Selection", false);
-    panelUploadButton = smallButton("Upload to Profile", false);
+    panelClear.style.marginRight = "auto";
+    panelUploadButton = smallButton("Sync Profile", false);
+    panelUploadButton.title = "Set the selected achievements and lock the unselected ones on your Steam profile";
     panelSave = smallButton("Save", true);
     panelClear.addEventListener("click", clearPanelSelection);
     panelUploadButton.addEventListener("click", () => applySelection(true, panelUploadButton));
     panelSave.addEventListener("click", () => applySelection(false, panelSave));
 
-    footer.appendChild(uploadGroup);
     footer.appendChild(panelClear);
     footer.appendChild(panelUploadButton);
     footer.appendChild(panelSave);
@@ -531,6 +535,7 @@
 
   function hidePanel() {
     panelActive = false;
+    clearTimeout(panelTitleTimer);
     if (panel) panel.style.display = "none";
     restoreNativeSelection();
     if (button) {
@@ -549,7 +554,7 @@
   let timer = 0;
   function schedule() {
     if (timer) return;
-    timer = setTimeout(() => { timer = 0; decorateTab(); }, 180);
+    timer = setTimeout(() => { timer = 0; decorateTab(); }, 80);
   }
 
   function onTabClick(event) {
@@ -571,11 +576,12 @@
     { childList: true, subtree: true, attributes: false });
   window.addEventListener("scroll", schedule, true);
   window.addEventListener("resize", schedule);
-  const interval = setInterval(decorateTab, 250);
+  const interval = setInterval(decorateTab, 160);
 
   window.__macsteamPropertiesTeardown = () => {
     clearInterval(interval);
     clearTimeout(timer);
+    clearTimeout(panelTitleTimer);
     observer.disconnect();
     window.removeEventListener("scroll", schedule, true);
     window.removeEventListener("resize", schedule);

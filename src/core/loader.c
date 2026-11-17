@@ -317,7 +317,7 @@ static void *loader_worker(void *unused) {
 
     // Patch stats caches before Steam's first game launch. Idempotent and
     // skipped per-app when no schema/cache exists yet.
-    sx_ach_spoof_sync();
+    sx_ach_spoof_startup_sync();
     sx_ach_spoof_start_watcher();
 
     int total = 0;
