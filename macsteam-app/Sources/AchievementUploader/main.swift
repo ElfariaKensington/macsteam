@@ -33,14 +33,16 @@ func argument(_ name: String) -> String? {
 
 guard let appIDText = argument("--appid"),
       let appID = UInt32(appIDText),
-      let shimPath = argument("--shim"),
-      let idsText = argument("--ids") else {
-    fail("usage: AchievementUploader --appid <id> --shim <path> --ids <id,id>")
+      let shimPath = argument("--shim") else {
+    fail("usage: AchievementUploader --appid <id> --shim <path> --ids <id,id> [--all <id,id>]")
 }
-let achievementIDs = idsText.split(separator: ",").map(String.init).filter { !$0.isEmpty }
-guard !achievementIDs.isEmpty else { fail("No achievements were selected.") }
+let achievementIDs = (argument("--ids") ?? "")
+    .split(separator: ",").map(String.init).filter { !$0.isEmpty }
 let allIDs = (argument("--all") ?? "")
     .split(separator: ",").map(String.init).filter { !$0.isEmpty }
+guard !achievementIDs.isEmpty || !allIDs.isEmpty else {
+    fail("No achievements were selected.")
+}
 
 setenv("SteamAppId", appIDText, 1)
 setenv("SteamGameId", appIDText, 1)
@@ -163,11 +165,16 @@ if storedCount == 0 && clearedCount == 0 {
     fail("Steam did not accept any of the selected achievement IDs.")
 }
 
-var message = "Uploaded \(storedCount) of \(achievementIDs.count) selected "
-    + "achievement\(achievementIDs.count == 1 ? "" : "s") to Steam."
-if clearAttempts > 0 {
-    message += " Locked \(clearedCount) of \(clearAttempts) unselected "
-        + "achievement\(clearAttempts == 1 ? "" : "s")."
+var message: String
+if achievementIDs.isEmpty {
+    message = "Cleared \(clearedCount) of \(clearAttempts) achievements from Steam."
+} else {
+    message = "Uploaded \(storedCount) of \(achievementIDs.count) selected "
+        + "achievement\(achievementIDs.count == 1 ? "" : "s") to Steam."
+    if clearAttempts > 0 {
+        message += " Locked \(clearedCount) of \(clearAttempts) unselected "
+            + "achievement\(clearAttempts == 1 ? "" : "s")."
+    }
 }
 message += " It can take a few minutes for your profile to refresh."
 

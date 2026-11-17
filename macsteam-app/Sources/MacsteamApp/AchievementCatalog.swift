@@ -223,7 +223,7 @@ final class AchievementPicker: NSObject, NSTableViewDataSource, NSTableViewDeleg
     private var selected: Set<String>
     private let countLabel = NSTextField(labelWithString: "")
     private let uploadCheckbox = NSButton(
-        checkboxWithTitle: "Sync selection to Steam profile (owned games only)",
+        checkboxWithTitle: "Upload to Steam profile (owned games only)",
         target: nil, action: nil)
     private let tableView = NSTableView()
 

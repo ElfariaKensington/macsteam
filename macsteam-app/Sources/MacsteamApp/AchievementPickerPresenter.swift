@@ -67,14 +67,14 @@ enum AchievementPickerPresenter {
                     CFNotificationName(rawValue: "com.macsteam.achievements.refresh" as CFString),
                     nil, nil, true)
 
-                if upload && !ids.isEmpty {
+                if upload {
                     if ids.count < definitions.count {
                         let confirm = NSAlert()
                         confirm.messageText = "Sync Steam profile?"
                         confirm.informativeText = "The \(definitions.count - ids.count) achievement"
                             + "\(definitions.count - ids.count == 1 ? "" : "s") you left unselected "
                             + "will also be locked on your Steam profile."
-                        confirm.addButton(withTitle: "Sync Profile")
+                        confirm.addButton(withTitle: "Upload to Profile")
                         confirm.addButton(withTitle: "Cancel")
                         guard confirm.runModal() == .alertFirstButtonReturn else { return }
                     }

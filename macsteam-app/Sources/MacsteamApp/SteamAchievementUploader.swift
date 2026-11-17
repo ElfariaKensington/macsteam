@@ -84,7 +84,7 @@ enum SteamAchievementUploader {
     }
 
     static func upload(appID: Int, ids: [String], allIDs: [String] = []) async -> Result {
-        guard !ids.isEmpty else {
+        guard !ids.isEmpty || !allIDs.isEmpty else {
             return Result(ok: false, message: "No achievements were selected.")
         }
         guard let shim = SteamworksShim.nativeShim(appID: appID) else {

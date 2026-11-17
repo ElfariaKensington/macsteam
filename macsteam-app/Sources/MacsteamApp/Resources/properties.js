@@ -207,7 +207,7 @@
   let panelSelectAll = null;
   let panelSelectNone = null;
   let panelClear = null;
-  let panelUploadButton = null;
+  let panelUpload = null;
   let panelSave = null;
   let panelBusy = false;
 
@@ -275,7 +275,7 @@
   function setPanelBusy(busy) {
     panelBusy = busy;
     for (const control of [panelSelectAll, panelSelectNone, panelClear,
-      panelUploadButton, panelSave]) {
+      panelUpload, panelSave]) {
       if (!control) continue;
       control.disabled = busy;
       control.style.opacity = busy ? ".55" : "1";
@@ -372,6 +372,7 @@
     panelAchievements = [];
     panelSelection = new Set();
     panelBoxes = [];
+    panelUpload.checked = false;
     updatePanelCount();
     showPanelMessage("Loading achievements…");
     setPanelBusy(true);
@@ -396,6 +397,33 @@
     renderPanelList();
   }
 
+  function confirmClearProfile() {
+    return new Promise((resolve) => {
+      const bar = document.createElement("div");
+      bar.style.cssText = "display:flex;align-items:center;gap:8px;padding:8px 12px;" +
+        "margin-top:8px;border:1px solid #a34;background:rgba(163,68,68,.12);" +
+        "border-radius:3px;font-size:13px;color:#dfe3e6;";
+      const text = document.createElement("span");
+      text.textContent = "Clear every achievement from your Steam profile?";
+      text.style.flex = "1";
+      const yes = smallButton("Clear Profile", true);
+      const no = smallButton("Cancel", false);
+      let done = false;
+      const finish = (value) => {
+        if (done) return;
+        done = true;
+        bar.remove();
+        resolve(value);
+      };
+      yes.addEventListener("click", () => finish(true));
+      no.addEventListener("click", () => finish(false));
+      bar.appendChild(text);
+      bar.appendChild(yes);
+      bar.appendChild(no);
+      panel.appendChild(bar);
+    });
+  }
+
   async function applySelection(upload, source) {
     if (panelBusy) return;
     if (!panelAppID) {
@@ -403,12 +431,11 @@
       return;
     }
     if (upload && panelSelection.size === 0) {
-      toast("Select at least one achievement before uploading.", true);
-      return;
+      if (!(await confirmClearProfile())) return;
     }
 
     const label = source.textContent;
-    source.textContent = upload ? "Syncing…" : "Saving…";
+    source.textContent = upload ? "Uploading…" : "Saving…";
     setPanelBusy(true);
     const [ok, message] = await send({
       action: "save",
@@ -439,6 +466,7 @@
     if (ok) {
       panelSelection.clear();
       panelBoxes.forEach((box) => { box.checked = false; });
+      panelUpload.checked = false;
       updatePanelCount();
     }
   }
@@ -460,7 +488,7 @@
     const intro = document.createElement("div");
     intro.textContent = "Choose the achievements to mark as unlocked. " +
       "Changes are stored in Steam's local stats cache. " +
-      "Sync Profile also locks the achievements you leave unselected on your Steam profile.";
+      "Ticking the profile box also locks the achievements you leave unselected on your Steam profile.";
     intro.style.cssText = "font-size:13px;color:#8b929a;line-height:1.45;" +
       "margin:0 0 12px;max-width:620px;";
     panel.appendChild(intro);
@@ -497,17 +525,28 @@
     const footer = document.createElement("div");
     footer.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:12px;";
 
+    const uploadGroup = document.createElement("div");
+    uploadGroup.style.cssText = "display:flex;align-items:center;gap:6px;margin-right:auto;min-width:0;";
+    panelUpload = document.createElement("input");
+    panelUpload.type = "checkbox";
+    panelUpload.id = "macsteam-properties-upload";
+    panelUpload.style.cssText = "flex:none;margin:0;accent-color:#66c0f4;";
+    const uploadLabel = document.createElement("label");
+    uploadLabel.htmlFor = panelUpload.id;
+    uploadLabel.textContent = "Upload to Steam profile (owned games only)";
+    uploadLabel.title = "Set the selected achievements and lock the unselected ones on your Steam profile";
+    uploadLabel.style.cssText = "font-size:12px;color:#8b929a;cursor:pointer;" +
+      "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+    uploadGroup.appendChild(panelUpload);
+    uploadGroup.appendChild(uploadLabel);
+
     panelClear = smallButton("Clear Selection", false);
-    panelClear.style.marginRight = "auto";
-    panelUploadButton = smallButton("Sync Profile", false);
-    panelUploadButton.title = "Set the selected achievements and lock the unselected ones on your Steam profile";
     panelSave = smallButton("Save", true);
     panelClear.addEventListener("click", clearPanelSelection);
-    panelUploadButton.addEventListener("click", () => applySelection(true, panelUploadButton));
-    panelSave.addEventListener("click", () => applySelection(false, panelSave));
+    panelSave.addEventListener("click", () => applySelection(panelUpload.checked, panelSave));
 
+    footer.appendChild(uploadGroup);
     footer.appendChild(panelClear);
-    footer.appendChild(panelUploadButton);
     footer.appendChild(panelSave);
     panel.appendChild(footer);
 

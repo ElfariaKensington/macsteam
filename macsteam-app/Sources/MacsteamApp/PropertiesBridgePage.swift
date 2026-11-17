@@ -314,7 +314,7 @@ final class PropertiesAchievementHandler {
                     message = "Applied \(chosen.count) achievement\(chosen.count == 1 ? "" : "s")."
                 }
 
-                if request.upload == true && !chosen.isEmpty {
+                if request.upload == true {
                     let upload = await SteamAchievementUploader.upload(
                         appID: appID, ids: chosen, allIDs: definitions.map(\.id))
                     message = upload.message
