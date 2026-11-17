@@ -18,16 +18,46 @@ final class AchievementSchemaFetcher {
 
     func ensureSchema(appID: Int) async -> Bool {
         if schemaIsReady(appID: appID) { return true }
+        // If the store says the game has no achievements, no schema will ever
+        // appear. Fail before the reviewer lookup and its network timeouts.
+        if await storeHasAchievements(appID: appID) == false { return false }
 
         let reviewers = await reviewerSteamIDs(appID: appID)
-        for reviewer in reviewers.prefix(4) {
+        for reviewer in reviewers.prefix(8) {
             _ = await requestFriendAchievements(appID: appID, steamID: reviewer)
-            for _ in 0..<20 {
+            for _ in 0..<12 {
                 if schemaIsReady(appID: appID) { return true }
                 try? await Task.sleep(for: .milliseconds(250))
             }
         }
         return schemaIsReady(appID: appID)
+    }
+
+    /// The store metadata is the fastest way to distinguish "no achievement
+    /// schema yet" from "this game has no achievements". nil means unknown.
+    func storeHasAchievements(appID: Int) async -> Bool? {
+        guard let url = URL(string:
+            "https://store.steampowered.com/api/appdetails?appids=\(appID)&l=english") else {
+            return nil
+        }
+        guard let (data, response) = try? await session.data(from: url),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let entry = root[String(appID)] as? [String: Any],
+              entry["success"] as? Bool == true,
+              let details = entry["data"] as? [String: Any] else {
+            return nil
+        }
+        if let achievements = details["achievements"] as? [String: Any],
+           let total = achievements["total"] as? Int {
+            return total > 0
+        }
+        if let categories = details["categories"] as? [[String: Any]] {
+            return categories.contains {
+                (($0["description"] as? String) ?? "").localizedCaseInsensitiveContains("achievement")
+            }
+        }
+        return false
     }
 
     private func schemaIsReady(appID: Int) -> Bool {

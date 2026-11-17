@@ -65,6 +65,10 @@ int sx_ach_restore(sx_bkv_node_t *cache_root, uint32_t stat_id,
 // thread; work is serialized internally.
 void sx_ach_spoof_sync(void);
 
+// First sync of a Steam process, before Steam reads its stats caches. Pending
+// restores are re-applied and their snapshots released.
+void sx_ach_spoof_startup_sync(void);
+
 // Start listening for config changes made by the companion app or the Steam
 // UI bridge. Registered once at load time.
 void sx_ach_spoof_start_watcher(void);

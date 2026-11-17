@@ -11,9 +11,13 @@ final class HubcapStoreBridge {
     private var propertiesPages: [String: PropertiesBridgePage] = [:]
     private let sharedAchBridge = SharedContextAchievementBridge()
     private let steamQCAchBridge = SteamQueryCacheAchievementBridge()
+    private var bridgeSyncInFlight = false
+    private var lastBridgeSync = Date.distantPast
+    private let launchNonce: String
     private var lockFD: Int32 = -1
 
-    init() {
+    init(launchNonce: String = "") {
+        self.launchNonce = launchNonce
         let configuration = URLSessionConfiguration.ephemeral
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
@@ -28,10 +32,18 @@ final class HubcapStoreBridge {
             try Paths.ensureDir(Paths.configDir)
             try executable.path.write(to: Paths.configDir.appendingPathComponent("hubcap-bridge.path"),
                                       atomically: true, encoding: .utf8)
+            // A newer config app takes ownership of the bridge. The running
+            // helper watches this value and exits so the new binary can run.
+            let nonce = UUID().uuidString
+            try Data(nonce.utf8).write(to: Paths.configDir.appendingPathComponent("hubcap-bridge.launch"),
+                                       options: .atomic)
+            // A helper from an older build predates the launch nonce; stop it
+            // so the new binary can take over the lock.
+            _ = Subprocess.run("/usr/bin/pkill", ["-f", "--hubcap-store-bridge"])
             try enableCEFDebugging(in: Paths.innerClientMacOS)
             let helper = Process()
             helper.executableURL = executable
-            helper.arguments = ["--hubcap-store-bridge"]
+            helper.arguments = ["--hubcap-store-bridge", nonce]
             var environment = ProcessInfo.processInfo.environment
             environment.removeValue(forKey: "DYLD_INSERT_LIBRARIES")
             environment.removeValue(forKey: "STEAM_APP_BUNDLE_PATH")
@@ -56,19 +68,29 @@ final class HubcapStoreBridge {
 
     func run() async {
         do { try Paths.ensureDir(Paths.configDir) } catch { return }
-        lockFD = open(Paths.configDir.appendingPathComponent("hubcap-bridge.lock").path,
-                      O_CREAT | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR)
+        let lockURL = Paths.configDir.appendingPathComponent("hubcap-bridge.lock")
+        // Give a stale helper a moment to notice the new launch nonce and exit.
+        for _ in 0..<60 {
+            lockFD = open(lockURL.path, O_CREAT | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR)
+            if lockFD >= 0 && flock(lockFD, LOCK_EX | LOCK_NB) == 0 { break }
+            if lockFD >= 0 { close(lockFD); lockFD = -1 }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
         guard lockFD >= 0 else { return }
         defer { close(lockFD); session.invalidateAndCancel() }
-        guard flock(lockFD, LOCK_EX | LOCK_NB) == 0 else { return }
         var missed = 0
         while !Task.isCancelled {
+            if !launchNonce.isEmpty, Self.currentLaunchNonce() != launchNonce {
+                break
+            }
             do {
                 let (data, response) = try await session.data(from: URL(string: "http://127.0.0.1:8080/json/list")!)
                 guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
                 let targets = try JSONDecoder().decode([Target].self, from: data)
                 missed = 0
                 let live = Set(targets.map(\.id))
+                var sharedEndpoint: (String, URL)?
+                var steamEndpoint: (String, URL)?
                 for id in pages.keys where !live.contains(id) || pages[id]?.closed == true {
                     pages.removeValue(forKey: id)?.close()
                 }
@@ -94,18 +116,32 @@ final class HubcapStoreBridge {
                     page.start()
                 }
                 if let shared = targets.first(where: { $0.title == "SharedJSContext" }),
-                   let endpoint = shared.webSocketDebuggerUrl,
-                   let url = URL(string: endpoint), url.scheme == "ws", url.port == 8080,
-                   ["127.0.0.1", "localhost", "[::1]"].contains(url.host ?? ""),
-                   url.path.hasPrefix("/devtools/page/") {
-                    await sharedAchBridge.sync(targetID: shared.id, endpoint: url, session: session)
+                   let url = Self.debuggerURL(shared) {
+                    sharedEndpoint = (shared.id, url)
                 }
                 if let steamWin = targets.first(where: { $0.title == "Steam" }),
-                   let endpoint = steamWin.webSocketDebuggerUrl,
-                   let url = URL(string: endpoint), url.scheme == "ws", url.port == 8080,
-                   ["127.0.0.1", "localhost", "[::1]"].contains(url.host ?? ""),
-                   url.path.hasPrefix("/devtools/page/") {
-                    await steamQCAchBridge.sync(targetID: steamWin.id, endpoint: url, session: session)
+                   let url = Self.debuggerURL(steamWin) {
+                    steamEndpoint = (steamWin.id, url)
+                }
+                // Run the achievement UI patches off the discovery loop. They
+                // open their own WebSockets and can take seconds; awaiting them
+                // here delayed attaching to newly opened properties windows.
+                let sharedJob = sharedEndpoint
+                let steamJob = steamEndpoint
+                let syncDue = Date().timeIntervalSince(lastBridgeSync) >= 1.5
+                if syncDue, !bridgeSyncInFlight, sharedJob != nil || steamJob != nil {
+                    bridgeSyncInFlight = true
+                    lastBridgeSync = Date()
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        if let (id, url) = sharedJob {
+                            await self.sharedAchBridge.sync(targetID: id, endpoint: url, session: self.session)
+                        }
+                        if let (id, url) = steamJob {
+                            await self.steamQCAchBridge.sync(targetID: id, endpoint: url, session: self.session)
+                        }
+                        self.bridgeSyncInFlight = false
+                    }
                 }
             } catch {
                 missed += 1
@@ -115,7 +151,7 @@ final class HubcapStoreBridge {
                     if Self.steamIsRunning() { missed = 0 } else { break }
                 }
             }
-            try? await Task.sleep(for: .milliseconds(500))
+            try? await Task.sleep(for: .milliseconds(250))
         }
         pages.values.forEach { $0.close() }
         propertiesPages.values.forEach { $0.close() }
@@ -127,6 +163,20 @@ final class HubcapStoreBridge {
 
     static func isPropertiesURL(_ value: String) -> Bool {
         value.hasPrefix("about:blank?createflags=4114")
+    }
+
+    private static func debuggerURL(_ target: Target) -> URL? {
+        guard let endpoint = target.webSocketDebuggerUrl,
+              let url = URL(string: endpoint), url.scheme == "ws", url.port == 8080,
+              ["127.0.0.1", "localhost", "[::1]"].contains(url.host ?? ""),
+              url.path.hasPrefix("/devtools/page/") else { return nil }
+        return url
+    }
+
+    private static func currentLaunchNonce() -> String {
+        (try? String(contentsOf: Paths.configDir.appendingPathComponent("hubcap-bridge.launch"),
+                     encoding: .utf8))?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     static func isStoreURL(_ value: String) -> Bool {

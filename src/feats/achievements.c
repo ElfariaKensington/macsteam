@@ -27,6 +27,7 @@ typedef struct {
     int           app_id;
     uint32_t      account_id;
     uint32_t      stat_id;
+    uint32_t      spoofed_mask; // bits macSteam has unlocked since the snapshot
     sx_ach_orig_t orig;
 } state_entry_t;
 
@@ -403,7 +404,9 @@ static void state_load(void) {
         e->orig.present = has_data;
         e->orig.data = data;
 
-        for (int i = 0; i < count && e->orig.time_count < SX_ACH_MAX_BITS; i++) {
+        int consumed = 0;
+        for (; consumed < count; consumed++) {
+            if (consumed >= SX_ACH_MAX_BITS) break;
             tok = strtok_r(NULL, " \t\r\n", &save);
             if (!tok) break;
             int bit = 0, when = 0;
@@ -414,6 +417,14 @@ static void state_load(void) {
                 e->orig.times[slot].time = when;
             }
         }
+        // Older files stop after the times. Newer files append the mask that
+        // was actually spoofed so the UI can hide it until Steam reloads.
+        if (consumed < count) {
+            while (consumed < count && strtok_r(NULL, " \t\r\n", &save))
+                consumed++;
+        }
+        tok = strtok_r(NULL, " \t\r\n", &save);
+        if (tok) e->spoofed_mask = (uint32_t)strtoul(tok, NULL, 16);
     }
     fclose(f);
     SX_DBG("[achievements] state: %d entr%s", g_entry_count,
@@ -440,6 +451,7 @@ static int state_save(void) {
         fprintf(f, "%d", e->orig.time_count);
         for (int t = 0; t < e->orig.time_count; t++)
             fprintf(f, " %d:%d", e->orig.times[t].bit, e->orig.times[t].time);
+        fprintf(f, " %08X", e->spoofed_mask);
         fputc('\n', f);
     }
     int ok = fflush(f) == 0;
@@ -530,23 +542,43 @@ static int sync_cache_file(int app_id, uint32_t account_id,
 
         int changed = sx_ach_apply(root, &stats[i], &known->orig,
                                    SX_ACH_FALLBACK_UNLOCK_TIME);
+        // Remember every bit macSteam actually added, not just the current
+        // selection. After a clear, Steam may still cache any of them. Bits
+        // that were already unlocked before the spoof must stay visible.
+        uint32_t valid = stats[i].valid_mask ? stats[i].valid_mask
+                                             : bit_mask(stats[i].bits);
+        uint32_t applied_bits = stats[i].selected & valid;
+        uint32_t orig_bits = known->orig.present ? (uint32_t)known->orig.data : 0;
+        uint32_t added_bits = applied_bits & ~orig_bits;
+        if (added_bits && (known->spoofed_mask | added_bits) != known->spoofed_mask) {
+            known->spoofed_mask |= added_bits;
+            *state_dirty = 1;
+        }
         if (!changed) continue;
         applied++;
         file_dirty = 1;
     }
 
     int needs_write = file_dirty || !bkv_matches(root, blob, len);
-    if (!needs_write) {
-        sx_bkv_free(root);
-        free(blob);
-        return 0;
+
+    // Persist the snapshot (and the applied mask) before touching the cache so
+    // a crash cannot leave an edit with no way to undo it. State must also be
+    // saved when only the mask changed, even if the file is already current.
+    if (*state_dirty) {
+        if (state_save() != 0) {
+            SX_WARN("[achievements] app %d: state save failed", app_id);
+            if (file_dirty) {
+                SX_WARN("[achievements] app %d: leaving %s alone", app_id, path);
+                sx_bkv_free(root);
+                free(blob);
+                return 0;
+            }
+        } else {
+            *state_dirty = 0;
+        }
     }
 
-    // Persist originals before touching the cache so a crash cannot leave an
-    // unrecoverable edit behind.
-    if (file_dirty && *state_dirty && state_save() != 0) {
-        SX_WARN("[achievements] app %d: state save failed; leaving %s alone",
-                app_id, path);
+    if (!needs_write) {
         sx_bkv_free(root);
         free(blob);
         return 0;
@@ -623,6 +655,10 @@ static int create_cache_file(int app_id, uint32_t account_id,
         }
         // A missing cache has no original values to preserve.
         known->orig = orig;
+        uint32_t valid = stats[i].valid_mask ? stats[i].valid_mask
+                                             : bit_mask(stats[i].bits);
+        if (stats[i].selected & valid)
+            known->spoofed_mask |= stats[i].selected & valid;
         *state_dirty = 1;
         if (sx_ach_apply(root, &stats[i], &orig, SX_ACH_FALLBACK_UNLOCK_TIME))
             applied++;
@@ -715,7 +751,11 @@ static int sync_app(const sx_config_t *cfg, int app_id, int *state_dirty) {
     return touched;
 }
 
-static int restore_disabled(const sx_config_t *cfg, int *state_dirty) {
+// Undo spoofs for apps that are no longer selected. A restore is provisional:
+// Steam keeps its own copy of the stats in memory and writes it back when it
+// exits, so the snapshot must survive until the next process start. Then the
+// file is restored a second time before Steam reads it, and the snapshot can go.
+static int restore_disabled(const sx_config_t *cfg, int *state_dirty, int startup) {
     int touched = 0;
     for (int i = 0; i < g_entry_count; ) {
         state_entry_t *e = &g_entries[i];
@@ -724,14 +764,25 @@ static int restore_disabled(const sx_config_t *cfg, int *state_dirty) {
         int app_id = e->app_id;
         uint32_t account_id = e->account_id;
 
+        // Entries for one app/account may not be adjacent. Handle the group
+        // once, at its first entry.
+        int seen = 0;
+        for (int k = 0; k < i; k++) {
+            if (g_entries[k].app_id == app_id &&
+                g_entries[k].account_id == account_id) { seen = 1; break; }
+        }
+        if (seen) { i++; continue; }
+
         char path[1200];
         cache_path(app_id, account_id, path, sizeof(path));
         size_t len = 0;
         uint8_t *blob = sx_slurp_file(path, &len);
+        int had_blob = blob != NULL;
         sx_bkv_node_t *root = blob ? sx_bkv_parse(blob, len) : NULL;
+        int parsed = root && strcmp(root->name, "cache") == 0;
 
         int changed = 0;
-        if (root) {
+        if (parsed) {
             for (int j = 0; j < g_entry_count; j++) {
                 state_entry_t *candidate = &g_entries[j];
                 if (candidate->app_id != app_id ||
@@ -740,34 +791,47 @@ static int restore_disabled(const sx_config_t *cfg, int *state_dirty) {
             }
         }
 
-        int needs_write = root && (changed || !bkv_matches(root, blob, len));
+        int needs_write = parsed && (changed || !bkv_matches(root, blob, len));
         int wrote = 1;
         if (needs_write)
             wrote = sx_bkv_write_file_atomic(path, root) == 0;
         sx_bkv_free(root);
         free(blob);
 
-        // Could not persist the restore: keep the snapshots for a later run.
-        if (!wrote) return touched;
+        // Could not parse or persist the file: keep the snapshots for later.
+        if (had_blob && !parsed) {
+            SX_WARN("[achievements] app %d: cannot parse %s; keeping restore state",
+                    app_id, path);
+            i++;
+            continue;
+        }
+        if (!wrote) { i++; continue; }
 
         if (changed) {
-            SX_LOG("[achievements] app %d: restored achievements in %s", app_id, path);
+            SX_LOG("[achievements] app %d: restored achievements in %s%s",
+                   app_id, path, startup ? " (verified after restart)" : "");
             touched = 1;
         }
 
-        for (int j = g_entry_count - 1; j >= 0; j--) {
-            if (g_entries[j].app_id == app_id &&
-                g_entries[j].account_id == account_id) {
-                entry_remove_at(j);
-                *state_dirty = 1;
+        if (startup) {
+            for (int j = g_entry_count - 1; j >= 0; j--) {
+                if (g_entries[j].app_id == app_id &&
+                    g_entries[j].account_id == account_id) {
+                    entry_remove_at(j);
+                    *state_dirty = 1;
+                }
             }
+            // The entry at i was removed; the next entry shifted into its place.
+        } else {
+            // Keep the snapshot until Steam has exited and restarted, otherwise
+            // its shutdown flush would make the spoof permanent.
+            i++;
         }
-        // The entry at i was removed; the next entry shifted into its place.
     }
     return touched;
 }
 
-static void sync_internal(int only_app) {
+static void sync_internal(int only_app, int startup) {
     pthread_mutex_lock(&g_sync_mu);
 
     sx_config_t *cfg = sx_config_current;
@@ -786,7 +850,7 @@ static void sync_internal(int only_app) {
     }
 
     if (only_app < 0)
-        restore_disabled(cfg, &state_dirty);
+        restore_disabled(cfg, &state_dirty, startup);
 
     if (state_dirty)
         state_save();
@@ -795,11 +859,18 @@ static void sync_internal(int only_app) {
 }
 
 void sx_ach_spoof_sync(void) {
-    sync_internal(-1);
+    sync_internal(-1, 0);
+}
+
+void sx_ach_spoof_startup_sync(void) {
+    // Runs before Steam reads its stats caches. A restore left over from the
+    // previous session is re-applied here, because Steam may have flushed its
+    // in-memory (spoofed) stats over the cache while shutting down.
+    sync_internal(-1, 1);
 }
 
 void sx_ach_spoof_sync_app(int app_id) {
-    if (app_id > 0) sync_internal(app_id);
+    if (app_id > 0) sync_internal(app_id, 0);
 }
 
 int sx_ach_spoof_enabled(void) {
