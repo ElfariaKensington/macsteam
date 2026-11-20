@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define METHOD_HASH_EXTENDED_DATA 0xC7E71245u
+#define METHOD_HASH_EXTENDED_DATA 0xC7E71244u
 
 static void *orig_ServerDispatch = NULL;
 
@@ -33,6 +33,14 @@ static uint32_t peek_method_hash(void *reqReader) {
     return *(uint32_t *)((uint8_t *)data + cur);
 }
 
+static void reader_save_cursor(void *reqReader, int32_t *out) {
+    *out = *(int32_t *)((uint8_t *)reqReader + 16);
+}
+
+static void reader_restore_cursor(void *reqReader, int32_t saved) {
+    *(int32_t *)((uint8_t *)reqReader + 16) = saved;
+}
+
 static int64_t hook_ServerDispatch(void *server_this, void *reqReader,
                                    void *respWriter, void *a4) {
     fn_ServerDispatch orig = (fn_ServerDispatch)orig_ServerDispatch;
@@ -44,13 +52,17 @@ static int64_t hook_ServerDispatch(void *server_this, void *reqReader,
     if (hash != METHOD_HASH_EXTENDED_DATA)
         return orig(server_this, reqReader, respWriter, a4);
 
+    int32_t saved_cursor;
+    reader_save_cursor(reqReader, &saved_cursor);
+
     uint32_t consumed_hash;
     g_get_bytes(reqReader, &consumed_hash, 4);
 
     if (sx_ticket_serve_extended(server_this, reqReader, respWriter))
         return 0;
 
-    return 0;
+    reader_restore_cursor(reqReader, saved_cursor);
+    return orig(server_this, reqReader, respWriter, a4);
 }
 
 static void *orig_FindAppOwnershipTicket = NULL;
@@ -69,7 +81,7 @@ static fn_buf_put    g_buf_put    = NULL;
 
 #define TICKET_STORE_MODE      6
 #define TICKET_STORE_CAP       0x800
-#define TICKET_SOURCE_APPID    7
+#define TICKET_SOURCE_APPID    480
 
 void sx_hooks_ticket_set_source_helpers(uintptr_t buf_ctor,
                                         uintptr_t ensure_capacity,
@@ -97,11 +109,11 @@ static int64_t hook_FindAppOwnershipTicket(void *cuser, uint32_t appid,
     uint32_t len = TICKET_STORE_CAP;
 
     if (!g_store_read(cuser, TICKET_STORE_MODE, name, store_data, &len)) {
-        SX_LOG_ONCE("[ticket] app-7 store entry missing (client never cached it)");
+        SX_LOG_ONCE("[ticket] app-480 store entry missing (client never cached it)");
         return orig(cuser, appid, fetch);
     }
     if (len < 48 || len > TICKET_STORE_CAP) {
-        SX_WARN("[ticket] app-7 store entry abnormal (len=%u)", len);
+        SX_WARN("[ticket] app-480 store entry abnormal (len=%u)", len);
         return orig(cuser, appid, fetch);
     }
 
@@ -113,7 +125,7 @@ static int64_t hook_FindAppOwnershipTicket(void *cuser, uint32_t appid,
     g_buf_ensure(buf, len);
     g_buf_put(buf, store_data, (int)len);
 
-    SX_LOG("[ticket] app-7 restored from store for lookup (len=%u)", len);
+    SX_LOG("[ticket] app-480 restored from store for lookup (len=%u)", len);
     return (int64_t)buf;
 }
 
