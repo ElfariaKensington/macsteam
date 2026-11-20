@@ -10,7 +10,7 @@ _Atomic(sx_config_t *) sx_config_current;
 static int passthrough, calls;
 static uint32_t received_app;
 static uint8_t received_flag;
-static uint32_t source_app = 7;
+static uint32_t source_app = 480;
 uint32_t sx_ticket_source_app(void) { return source_app; }
 void sx_ticket_set_source_app(uint32_t app) { source_app = app; }
 int sx_log_once_seen(const void *site, unsigned long key) { return 0; }
@@ -60,19 +60,19 @@ int main(void) {
     sx_config_t cfg = {0}; sx_config_current = &cfg;
     g_get_bytes = get_bytes; orig_ServerDispatch = native;
     uint8_t data[13];
-    frame(data, METHOD_HASH_UPDATE_TICKET, 848450, 0); run(data, 13, 7, 0);
-    frame(data, METHOD_HASH_UPDATE_TICKET, 848450, 1); run(data, 13, 7, 1);
+    frame(data, METHOD_HASH_UPDATE_TICKET, 848450, 0); run(data, 13, 480, 0);
+    frame(data, METHOD_HASH_UPDATE_TICKET, 848450, 1); run(data, 13, 480, 1);
     frame(data, METHOD_HASH_UPDATE_TICKET, 3712080, 0); run(data, 13, 3712080, 0);
-    frame(data, METHOD_HASH_UPDATE_TICKET, 7, 0); run(data, 13, 7, 0);
+    frame(data, METHOD_HASH_UPDATE_TICKET, 480, 0); run(data, 13, 480, 0);
     frame(data, 0x12345678, 848450, 0); run(data, 13, 848450, 0);
     frame(data, METHOD_HASH_UPDATE_TICKET, 848450, 0); data[9] ^= 1; run(data, 13, 848450, 0);
     frame(data, METHOD_HASH_UPDATE_TICKET, 848450, 2); run(data, 13, 848450, 2);
     frame(data, METHOD_HASH_UPDATE_TICKET, 848450, 0); run(data, 8, 848450, 0);
     passthrough = 1; run(data, 13, 848450, 0); passthrough = 0;
     sx_config_current = NULL; run(data, 13, 848450, 0); sx_config_current = &cfg;
-    // Source defaults to app 7. Alternate sources must be selected explicitly;
+    // Source defaults to app 480. Alternate sources must be selected explicitly;
     // no ownership-store reads are attempted by app ownership/subscription hooks.
-    assert(source_app == 7);
+    assert(source_app == 480);
     sx_ticket_set_source_app(3712080);
     assert(source_app == 3712080);
     frame(data, METHOD_HASH_UPDATE_TICKET, 848450, 1); run(data, 13, 3712080, 1);
