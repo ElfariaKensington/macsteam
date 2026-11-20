@@ -27,14 +27,15 @@ static int utlbuf_read(void *buf, void *dst, int len) {
     return g_get_bytes(buf, dst, len);
 }
 
-#define IMPL_VTABLE_SLOT 0x348
+#define IMPL_VTABLE_SLOT 0x350
 
 typedef int64_t (*fn_get_ticket_impl)(void *self, uint32_t appId, void *buf,
                                        uint32_t bufMax, uint32_t *pOffAppId,
                                        uint32_t *pOffSteamId, uint32_t *pOffSig,
                                        uint32_t *pSigSize);
 
-#define SOURCE_APPID       7
+// Spacewar (480) is owned by every account, so its genuine ticket is always cached.
+#define SOURCE_APPID       480
 static _Atomic(uint32_t) g_source_app = SOURCE_APPID;
 uint32_t sx_ticket_source_app(void) { return atomic_load(&g_source_app); }
 void sx_ticket_set_source_app(uint32_t app_id) {
@@ -141,16 +142,14 @@ int sx_ticket_serve_extended(void *server_this, void *reqReader, void *respWrite
     memcpy(forged + body_len, &req_appId, 4);
     memcpy(forged + body_len + 4, source_buf + body_len, sig_size);
 
-    uint32_t reported_size = (uint32_t)src_len;
-
-    serialize_response(respWriter, (int64_t)reported_size, forged, req_cbMax,
+    serialize_response(respWriter, (int64_t)src_len, forged, req_cbMax,
                        body_len,
                        src_off_steam,
                        body_len + 4,
                        sig_size);
 
     SX_LOG("GetAppOwnershipTicketExtendedData: FORGED app %u (source=%u, bodyLen=%u, sigOff=%u->%u, physical=%u, reported=%u)",
-           req_appId, source_app, body_len, src_off_sig, body_len + 4, forged_physical, reported_size);
+           req_appId, source_app, body_len, src_off_sig, body_len + 4, forged_physical, (uint32_t)src_len);
 
     free(forged);
     free(source_buf);
