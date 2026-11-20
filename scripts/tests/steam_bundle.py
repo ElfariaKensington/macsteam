@@ -2,6 +2,7 @@
 """Fetch Valve's pristine Steam macOS client files for the compatibility tests.
 
     steam_bundle.py sp-js          # prints the path of the pristine steamui/sp.js
+    steam_bundle.py steamui        # prints a folder holding pristine steamui/sp.js and css/sp.css
     steam_bundle.py steamclient    # prints the path of the arm64 steamclient.dylib
     steam_bundle.py build          # prints the live client build number
 
@@ -67,14 +68,37 @@ def _cached(name, make):
     return path
 
 
-def sp_js():
+def _steamui_file(rel):
     def make(text):
         z = zipfile.ZipFile(io.BytesIO(_vz(_get(CDN + "/" + _package(text, "steamui_websrc_all")))))
         for entry in z.namelist():
-            if entry.replace("\\", "/") == "steamui/sp.js":
+            if entry.replace("\\", "/") == "steamui/" + rel:
                 return z.read(entry)
-        raise RuntimeError("steamui/sp.js not in package")
-    return _cached("sp.js", make)
+        raise RuntimeError("steamui/%s not in package" % rel)
+    return make
+
+
+def sp_js():
+    return _cached("sp.js", _steamui_file("sp.js"))
+
+
+def steamui():
+    """A folder laid out like Steam's steamui/ with the files the UI patches read."""
+    text = manifest()
+    folder = os.path.join(CACHE, build(text), "steamui")
+    wanted = ("sp.js", "css/sp.css")
+    if not all(os.path.exists(os.path.join(folder, rel)) for rel in wanted):
+        z = zipfile.ZipFile(io.BytesIO(_vz(_get(CDN + "/" + _package(text, "steamui_websrc_all")))))
+        names = {e.replace("\\", "/"): e for e in z.namelist()}
+        for rel in wanted:
+            if "steamui/" + rel not in names:
+                raise RuntimeError("steamui/%s not in package" % rel)
+            path = os.path.join(folder, rel)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path + ".part", "wb") as f:
+                f.write(z.read(names["steamui/" + rel]))
+            os.replace(path + ".part", path)
+    return folder
 
 
 def steamclient():
@@ -95,6 +119,8 @@ if __name__ == "__main__":
     what = sys.argv[1] if len(sys.argv) > 1 else ""
     if what == "sp-js":
         print(sp_js())
+    elif what == "steamui":
+        print(steamui())
     elif what == "steamclient":
         print(steamclient())
     elif what == "build":

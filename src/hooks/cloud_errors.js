@@ -124,6 +124,5 @@
         text = text.slice(0, edit.start) + edit.value + text.slice(edit.end);
         previous = edit.start;
     }
-    if (text.length >= source.length) throw Error('No space for size-preserving patch');
-    return text + ' '.repeat(source.length - text.length);
+    return text;
 })

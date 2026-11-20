@@ -21,13 +21,19 @@ Manifest request codes are fetched from ManifestDeX over HTTPS, using the provid
 
 Pretty boring. 
 
-On Steam startup, macsteam also hides the “From the library of…” row (including
-the lender avatar/status) and the legacy library-sharing retirement notice.
-The patch preserves the JavaScript file's byte length to avoid triggering Steam's
-startup size repair, and reapplies when macsteam loads after an update. It only
-changes the UI; sharing permissions are unaffected. The rows are found by their
-stable CSS-module names, so Steam's per-build identifier renaming doesn't matter;
-if a bundle no longer contains them, it is left unchanged.
+macsteam also hides the "From the library of…" row (including the lender
+avatar/status) and the legacy library-sharing retirement notice. It only changes
+the UI; sharing permissions are unaffected.
+
+All Steam UI changes (these rows, the What's New shelf and the Cloud error option
+below) are applied in memory as Steam Helper reads `steamui/`; Steam's files on
+disk are never modified, so a Steam update cannot conflict with them and Steam's
+file checks see the shipped bundle. Rows are hidden with a CSS rule on Steam's
+CSS-module names (`SharedLibrary`, `OldSharingWarning`, `LibraryHomeWhatsNew`,
+`UpdatesContainer`), which survive Steam's per-build minification. If a name or
+the Cloud anchors stop matching, that one change is skipped and logged; the rest
+still apply. On first launch after upgrading, macsteam restores any files older
+versions edited on disk and deletes their `sp.js.macsteam-cloud.*` recovery copies.
 
 ## macSteam Config
 
@@ -38,19 +44,16 @@ error indicators and Cloud failure/conflict notifications without disabling sync
 Error-only Cloud columns collapse completely, and sidebar titles retain their
 normal installed/uninstalled colors. It continues past game-launch Cloud warnings
 using Steam’s “play anyway” action, without choosing local or remote saves. It defaults to off. Restart Steam
-after changing it; turning it off restores the original UI. The config key is
+after changing it; turning it off shows the original UI again. The config key is
 `HideCloudErrors: yes` (or `no`).
 
 The Cloud patch discovers render functions and callbacks from semantic UI names;
-it does not depend on minified variable names or CSS hashes. It reapplies to new
-bundles at startup and preserves file size. Recovery copies are keyed to the
-patched bundle’s SHA-256, so restoring the toggle cannot overwrite a Steam update
-with an old bundle. If a future structure is unrecognized, the bundle stays
-untouched and the reason is logged.
+it does not depend on minified variable names or CSS hashes.
 
-Regression check against an unmodified Steam bundle:
+Regression check against Valve's current bundle (also run by `steam_compat.py` in CI):
 ```bash
-python3 scripts/tests/cloud_errors.py /path/to/steamui/sp.js
+python3 scripts/tests/steamui_patches.py                 # downloads the live bundle
+python3 scripts/tests/steamui_patches.py /path/to/steamui
 ```
 
 ## Usage

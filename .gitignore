@@ -20,3 +20,4 @@ xcuserdata/
 DerivedData/
 release/
 lua-tools-auth.json
+__pycache__/

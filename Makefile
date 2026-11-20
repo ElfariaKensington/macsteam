@@ -55,13 +55,14 @@ SRCS := src/core/loader.c \
         src/hooks/hook_relaunch.c \
         src/hooks/hook_stats.c \
         src/hooks/hook_ticket.c \
-        src/hooks/hook_whatsnew.c \
+        src/hooks/hook_steamui.c \
+        src/hooks/steamui_css.c \
+        src/hooks/steamui_cloud.c \
+        src/hooks/steamui_restore.c \
         src/onlinefix/onlinefix.c \
         src/onlinefix/session.c \
         src/onlinefix/config.c \
         $(wildcard src/onlinefix/patch/universal/*.c) \
-        src/hooks/hook_clouderrors.c \
-        src/hooks/hook_librarysharing.c \
         vendor/cJSON.c
 
 OUT_DIR  := out
@@ -91,7 +92,7 @@ $(TARGET): $(ARM64_DYLIB) $(X86_STUB)
 	@echo "==> Built: $@"
 
 $(OBJS): | $(DOBBY_STAMP)
-$(OUT_DIR)/src/hooks/hook_clouderrors.o: $(OUT_DIR)/cloud_errors_js.inc
+$(OUT_DIR)/src/hooks/steamui_cloud.o: $(OUT_DIR)/cloud_errors_js.inc
 
 $(OUT_DIR)/cloud_errors_js.inc: src/hooks/cloud_errors.js
 	@mkdir -p $(dir $@)
@@ -172,6 +173,15 @@ $(ANCHOR_PROBE_BIN): $(ANCHOR_PROBE_SRC) src/resolver/anchor.c src/core/macho.c 
 	@echo "==> Built probe: $@"
 
 .PHONY: test-license
+# Runs the CSS-key resolver and hide rule against a real steamui folder:
+#   make test-steamui STEAMUI_DIR=~/Library/Application\ Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steamui
+test-steamui: $(OUT_DIR)/tests/steamui_probe
+	@$(OUT_DIR)/tests/steamui_probe $(if $(STEAMUI_DIR),"$(STEAMUI_DIR)")
+
+$(OUT_DIR)/tests/steamui_probe: tests/steamui_probe.c src/hooks/steamui_css.c src/hooks/steamui.h src/util/log.c src/util/file.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -o $@ tests/steamui_probe.c src/hooks/steamui_css.c src/util/log.c src/util/file.c
+
 test-license: $(OUT_DIR)/tests/license_probe
 	@$(OUT_DIR)/tests/license_probe
 
@@ -179,7 +189,7 @@ $(OUT_DIR)/tests/license_probe: tests/license_probe.c src/feats/license.c src/fe
 	@mkdir -p $(dir $@)
 	$(CC) -std=c17 -Wall -Wextra -Isrc -o $@ tests/license_probe.c src/feats/license.c
 
-test: test-onlinefix test-manifest test-license test-achievements test-schema-owners
+test: test-onlinefix test-manifest test-license test-achievements test-schema-owners test-steamui
 	@if [ ! -d macsteam-app/Tests ]; then echo "==> No existing app tests, skipping app test suite."; exit 0; fi; \
 	 $(MAKE) $(PROBE_BIN) $(STATS_PROBE_BIN) $(AOB_PROBE_BIN) $(ANCHOR_PROBE_BIN); \
 	 echo "==> Running C stats-resolver probe..."; \

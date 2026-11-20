@@ -4,9 +4,8 @@
     python3 scripts/tests/steam_compat.py
 
 Downloads Valve's current macOS client (cached) and runs every in-Steam patch check that applies
-to this tree against it: signature DB, Cloud-error patch, shared-library rows, patch order across
-launches and the Store page cards. Exits non-zero if any fails, so CI fails the build when a Steam
-update breaks something.
+to this tree against it: signature DB, the in-memory Steam UI patches and the Store page cards.
+Exits non-zero if any fails, so CI fails the build when a Steam update breaks something.
 
 A check runs when the feature it covers is in the tree; if the feature is there but its test
 file is missing the run fails (so a test can't be dropped silently). Needs python3, node and clang
@@ -27,12 +26,8 @@ py = [sys.executable, '-I']
 CHECKS = [
     ('Signature DB vs steamclient.dylib', py + [str(here / 'signatures.py')],
      ['signatures/macos.arm64'], None),
-    ('Cloud error patch', py + [str(here / 'cloud_errors.py')],
-     ['src/hooks/hook_clouderrors.c'], None),
-    ('Shared-library rows patch', py + [str(here / 'library_sharing.py')],
-     ['src/hooks/hook_librarysharing.c'], None),
-    ('sp.js patch order across launches', py + [str(here / 'ui_patch_order.py')],
-     ['src/hooks/hook_clouderrors.c', 'src/hooks/hook_librarysharing.c'], None),
+    ('Steam UI patches (Cloud errors, shared-library rows, What\'s New)',
+     py + [str(here / 'steamui_patches.py')], ['src/hooks/hook_steamui.c'], None),
     ('Store Add/Install card UI', ['node', str(here / 'hubcap_store_ui.cjs')],
      ['macsteam-app/Sources/MacsteamApp/Resources/hubcap-store.js'], None),
     ('Store game-fixes card UI', ['node', str(here / 'store_fixes_ui.cjs')],
@@ -43,6 +38,7 @@ CHECKS = [
 build = steam_bundle.build()
 print('Valve Steam client build:', build, flush=True)
 steam_bundle.sp_js()
+steam_bundle.steamui()
 steam_bundle.steamclient()
 
 failed, ran = [], 0
