@@ -5,6 +5,18 @@
     <description>Most recent changes for macSteam Config.</description>
     <language>en</language>
     <item>
+      <title>Version 0.8.3</title>
+      <pubDate>Fri, 20 Nov 2026 20:05:55 +0000</pubDate>
+      <sparkle:version>14</sparkle:version>
+      <sparkle:shortVersionString>0.8.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<ul><li>Support Steam build 1794536281</li><li>Fix SteamStub ticket forge</li></ul>]]></description>
+      <enclosure url="https://github.com/crghofficial/macsteam/releases/download/v0.8.3/macSteam-0.8.3.dmg"
+                 type="application/octet-stream"
+                 sparkle:edSignature="39rQMzfu/LyZrlCXSlUWEVxbShryhgYdu4vqA0Ybi81PHtaejLVz8rYntGWqPMawWSXWjcHeqlucptuF3aXHDA=="
+                 length="1881982" />
+    </item>
+    <item>
       <title>Version 0.8.2</title>
       <pubDate>Thu, 23 Oct 2026 04:38:12 +0000</pubDate>
       <sparkle:version>13</sparkle:version>

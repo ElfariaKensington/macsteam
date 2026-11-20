@@ -26,14 +26,14 @@ static int utlbuf_read(void *buf, void *dst, int len) {
     return g_get_bytes(buf, dst, len);
 }
 
-#define IMPL_VTABLE_SLOT 0x348
+#define IMPL_VTABLE_SLOT 0x350
 
 typedef int64_t (*fn_get_ticket_impl)(void *self, uint32_t appId, void *buf,
                                        uint32_t bufMax, uint32_t *pOffAppId,
                                        uint32_t *pOffSteamId, uint32_t *pOffSig,
                                        uint32_t *pSigSize);
 
-#define SOURCE_APPID       7
+#define SOURCE_APPID       480
 #define MAX_TICKET_BUF     4096
 
 static int should_forge(uint32_t app_id) {
@@ -111,7 +111,7 @@ int sx_ticket_serve_extended(void *server_this, void *reqReader, void *respWrite
 
     if (src_len <= 0 || body_len == 0 || sig_size == 0 ||
         body_len + sig_size != (uint32_t)src_len) {
-        SX_WARN("GetAppOwnershipTicketExtendedData: appid-7 ticket invalid (len=%lld, sigOff=%u, sigSize=%u, impl=%p)",
+        SX_WARN("GetAppOwnershipTicketExtendedData: source ticket invalid (len=%lld, sigOff=%u, sigSize=%u, impl=%p)",
                 (long long)src_len, body_len, sig_size, (void *)impl);
         free(source_buf);
         return 0;
@@ -134,16 +134,14 @@ int sx_ticket_serve_extended(void *server_this, void *reqReader, void *respWrite
     memcpy(forged + body_len, &req_appId, 4);
     memcpy(forged + body_len + 4, source_buf + body_len, sig_size);
 
-    uint32_t reported_size = (uint32_t)src_len;
-
-    serialize_response(respWriter, (int64_t)reported_size, forged, req_cbMax,
+    serialize_response(respWriter, (int64_t)src_len, forged, req_cbMax,
                        body_len,
                        src_off_steam,
                        body_len + 4,
                        sig_size);
 
-    SX_LOG("GetAppOwnershipTicketExtendedData: FORGED app %u (source=7, bodyLen=%u, sigOff=%u->%u, physical=%u, reported=%u)",
-           req_appId, body_len, src_off_sig, body_len + 4, forged_physical, reported_size);
+    SX_LOG("GetAppOwnershipTicketExtendedData: FORGED app %u (source=480, bodyLen=%u, sigOff=%u->%u, reported=%u)",
+           req_appId, body_len, src_off_sig, body_len + 4, (uint32_t)src_len);
 
     free(forged);
     free(source_buf);
